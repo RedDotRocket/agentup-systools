@@ -1,0 +1,262 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with this AgentUp plugin.
+
+## Plugin Overview
+
+This is an AgentUp plugin that provides Agentup Systools functionality. It
+uses the AgentUp decorator-based plugin architecture for integration with
+the AgentUp runtime.
+
+## Plugin Structure
+
+```
+agentup-systools/
+├── src/
+│   └── agentup_systools/
+│       ├── __init__.py
+│       └── plugin.py           # Main plugin implementation
+├── tests/
+│   └── test_agentup_systools.py
+├── pyproject.toml              # Package configuration with AgentUp entry point
+├── README.md                   # Plugin documentation
+└── CLAUDE.md                   # This file
+```
+
+## Core Plugin Architecture
+
+### Decorator System
+The plugin uses the `@capability` decorator to define functionality:
+
+```python
+from agent.plugins.base import Plugin
+from agent.plugins.decorators import capability
+
+class AgentupSystoolsPlugin(Plugin):
+    @capability(
+        id="read_file",
+        name="Agentup Systools",
+        description="A plugin that provides Agentup Systools functionality",
+        scopes=["api:read"],
+        ai_function=True
+    )
+    async def handle_request(self, context: CapabilityContext) -> str:
+        # Your capability logic here
+        return "Response"
+```
+
+### Entry Point
+The plugin is registered via entry point in `pyproject.toml`:
+```toml
+[project.entry-points."agentup.plugins"]
+agentup_systools = "agentup_systools.plugin:AgentupSystoolsPlugin"
+```
+
+## Development Guidelines
+
+### Code Style
+- Follow PEP 8 and Python best practices
+- Use type hints throughout the codebase (following modern Python typing conventions)
+- Use async/await for I/O operations
+- Handle errors gracefully with proper A2A error responses
+
+### Modern Typing Conventions (Python 3.9+)
+- **Use built-in types**: `dict[str, Any]` instead of `typing.Dict[str, Any]`
+- **Use built-in types**: `list[str]` instead of `typing.List[str]`
+- **Use union syntax**: `str | None` instead of `Optional[str]` (Python 3.10+)
+- **Import selectively**: Only import from `typing` what's not available as built-ins
+  ```python
+  # ✅ CORRECT - Modern imports
+  from typing import Union, Literal, Any, TypeVar, Generic
+  from pydantic import BaseModel, Field, field_validator, model_validator
+  
+  # ❌ AVOID - Don't import these from typing
+  from typing import Dict, List, Optional, Tuple, Set
+  ```
+
+### Pydantic v2 Patterns
+- **Field validators**: Use `@field_validator` instead of deprecated `@validator`
+- **Model validators**: Use `@model_validator(mode='after')` instead of `@root_validator`
+- **Always add @classmethod**: Required for field validators in Pydantic v2
+  ```python
+  @field_validator("field_name")
+  @classmethod
+  def validate_field(cls, v: str) -> str:
+      if not v.strip():
+          raise ValueError("Field cannot be empty")
+      return v
+  ```
+
+### Plugin Implementation Patterns
+
+#### 1. Basic Capability
+```python
+@capability(
+    id="read_file",
+    name="Agentup Systools",
+    description="A plugin that provides Agentup Systools functionality",
+    scopes=["api:read"],
+    tags=["agentup-systools", "custom"]
+)
+async def handle_request(self, context: CapabilityContext) -> str:
+    try:
+        # Extract input from context
+        user_input = self._extract_task_content(context)
+        
+        # Your capability logic here
+        response = self._process_request(user_input)
+        
+        return response
+    except Exception as e:
+        return f"Error: {str(e)}"
+```
+
+#### 2. AI Function Support
+```python
+@capability(
+    id="read_file_ai",
+    name="Agentup Systools AI Function",
+    description="AI-callable function for A plugin that provides Agentup Systools functionality",
+    scopes=["api:read"],
+    ai_function=True,
+    ai_parameters={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Query to process"
+            },
+            "options": {
+                "type": "object",
+                "properties": {
+                    "timeout": {"type": "integer", "default": 30}
+                }
+            }
+        },
+        "required": ["query"]
+    }
+)
+async def ai_function(self, context: CapabilityContext) -> str:
+    # Extract parameters from context
+    params = context.metadata.get("parameters", {})
+    query = params.get("query", "")
+    options = params.get("options", {})
+    
+    # Process the AI function call
+    result = await self._process_ai_request(query, options)
+    return result
+```
+
+#### 3. Multiple Capabilities
+```python
+class AgentupSystoolsPlugin(Plugin):
+    @capability(
+        id="read_file_text",
+        name="Text Processing",
+        description="Process text input",
+        scopes=["api:read"]
+    )
+    async def process_text(self, context: CapabilityContext) -> str:
+        # Text processing logic
+        return "Processed text"
+    
+    @capability(
+        id="read_file_analyze",
+        name="Data Analysis",
+        description="Analyze data",
+        scopes=["api:read", "data:read"]
+    )
+    async def analyze_data(self, context: CapabilityContext) -> str:
+        # Analysis logic
+        return "Analysis complete"
+```
+
+### Error Handling
+- Return strings for simple responses or CapabilityResult objects for complex responses
+- Handle exceptions gracefully within capability methods
+- Include descriptive error messages
+- Log errors appropriately for debugging
+
+### Testing
+- Write comprehensive tests for all plugin functionality
+- Test both success and error cases
+- Mock external dependencies
+- Use pytest and async test patterns
+
+### Configuration
+- Define configuration schema in the @capability decorator
+- Override lifecycle methods for custom validation
+- Use environment variables for sensitive data
+- Provide sensible defaults
+
+## Development Workflow
+
+### Local Development
+1. Install in development mode: `pip install -e .`
+2. Create test agent: `agentup agent create test-agent --quick`
+3. Configure plugin in agent's `agentup.yml`
+4. Test with: `agentup agent serve`
+
+### Testing
+```bash
+# Run tests
+pytest tests/ -v
+
+# Check plugin loading
+agentup plugin list
+
+# Validate plugin
+agentup plugin validate agentup_systools
+```
+
+### External Dependencies
+- Use AgentUp's service registry for HTTP clients, databases, etc.
+- Declare all dependencies in pyproject.toml
+- Use async libraries for better performance
+
+## Plugin Capabilities
+
+### Available Capabilities
+- `CapabilityType.TEXT` - Text processing
+- `CapabilityType.MULTIMODAL` - Images, documents, etc.
+- `CapabilityType.AI_FUNCTION` - LLM-callable functions
+- `CapabilityType.STREAMING` - Streaming responses
+- `CapabilityType.STATEFUL` - State management
+
+### Middleware Support
+Request middleware for common functionality:
+- Rate limiting
+- Caching
+- Retry logic
+- Logging
+- Validation
+
+### Service Integration
+Access external services via AgentUp's service registry:
+- HTTP clients
+- Database connections
+- Cache backends
+- Message queues
+
+### Framework Integration
+- Leverage AgentUp's built-in features
+- Use provided utilities and helpers
+- Follow established patterns from other plugins
+- Maintain compatibility with different agent configurations
+
+### Community Guidelines
+- Write clear documentation
+- Provide usage examples
+- Follow semantic versioning
+- Respond to issues and pull requests
+
+## Resources
+
+- [AgentUp Documentation](https://docs.agentup.dev)
+- [Plugin Development Guide](https://docs.agentup.dev/plugins/development)
+- [Testing Guide](https://docs.agentup.dev/plugins/testing)
+- [AI Functions Guide](https://docs.agentup.dev/plugins/ai-functions)
+
+---
+
+Remember: This plugin is part of the AgentUp ecosystem. Always consider how it integrates with other plugins and follows AgentUp approach for maximum compatibility and usefulness.
