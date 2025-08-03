@@ -99,12 +99,7 @@ pip install -e .
 
 ### From AgentUp Registry or PyPi (when published)
 ```bash
-pip install agentup-system-tools
-```
-
-### Via AgentUp CLI
-```bash
-agentup plugin install system-tools
+pip install --extra-index-url https://api.agentup.dev/simple agentup-system-tools
 ```
 
 
