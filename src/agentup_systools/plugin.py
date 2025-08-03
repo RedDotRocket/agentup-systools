@@ -1,78 +1,589 @@
 """
-Agentup Systools plugin for AgentUp.
+System Tools plugin for AgentUp.
 
-A plugin that provides Agentup Systools functionality
+Provides comprehensive file system operations, directory management,
+system information, and secure command execution capabilities.
 """
 
-import datetime
-from typing import Dict, Any
-import structlog
+import json
+import os
+import platform
+import shutil
+import subprocess
+from typing import Any
+import structlog  # noqa: F401
 
 from agent.plugins.base import Plugin
 from agent.plugins.decorators import capability
 from agent.plugins.models import CapabilityContext
 
+from .hashing import FileHasher
+from .security import SecurityError, SecurityManager
+from .utils import (
+    create_error_response,
+    create_success_response,
+    format_file_size,
+    format_timestamp,
+    get_file_permissions,
+    get_file_type,
+    safe_read_text,
+    safe_write_text,
+)
+
 
 class AgentupSystoolsPlugin(Plugin):
-    """Basic plugin class for Agentup Systools."""
+    """System Tools plugin providing file operations, directory management, and system utilities."""
 
     def __init__(self):
         """Initialize the plugin."""
         super().__init__()
         self.name = "agentup_systools"
         self.version = "1.0.0"
+        # Initialize with defaults - will be reconfigured when configure() is called
+        self.security = SecurityManager()
+        self.hasher = FileHasher(self.security)
 
+    def configure(self, config: dict[str, Any]) -> None:
+        """Configure the plugin with settings."""
+        super().configure(config)
+        
+        # Reinitialize security manager with configuration
+        workspace_dir = config.get("workspace_dir")
+        max_file_size = config.get("max_file_size", 10 * 1024 * 1024)
+        
+        self.security = SecurityManager(
+            workspace_dir=workspace_dir,
+            max_file_size=max_file_size
+        )
+        self.hasher = FileHasher(self.security)
+        
+        if config.get("debug", False):
+            self.logger.info(f"Plugin configured with workspace_dir: {workspace_dir}, max_file_size: {max_file_size}")
+
+    def _get_parameters(self, context: CapabilityContext) -> dict[str, Any]:
+        """Extract parameters from context, checking multiple locations for compatibility."""
+        params = context.metadata.get("parameters", {})
+        if not params:
+            params = context.task.metadata if context.task and context.task.metadata else {}
+        return params
+
+    # File Operations
     @capability(
-        id="read_file",
-        name="Agentup Systools",
-        description="A plugin that provides Agentup Systools functionality",
-        scopes=["agentup-systools:use"],
-        ai_function=False    )
-    async def read_file(self, context: CapabilityContext) -> Dict[str, Any]:
-        """Execute the agentup systools capability."""
+        id="file_read",
+        name="File Read",
+        description="Read contents of files",
+        scopes=["files:read"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path to the file to read"},
+                "encoding": {"type": "string", "description": "Text encoding (default: utf-8)", "default": "utf-8"},
+            },
+            "required": ["path"],
+        }
+    )
+    async def file_read(self, context: CapabilityContext) -> dict[str, Any]:
+        """Read contents of a file."""
         try:
-            # Extract input from context using base class method
-            input_text = self._extract_task_content(context)
-            
-            # Log the start of processing (demonstrates structured logging)
-            self.logger.info("Starting capability execution", capability_id="read_file", input_length=len(input_text))
+            params = self._get_parameters(context)
+            path = params.get("path", "")
+            encoding = params.get("encoding", "utf-8")
 
-            # Basic processing
-            processed_result = f"Agentup Systools processed: {input_text}"
-            
-            # Log successful completion
-            self.logger.info("Capability execution completed", 
-                           capability_id="read_file", 
-                           input_length=len(input_text),
-                           result_length=len(processed_result))
+            file_path = self.security.validate_path(path)
+            self.security.validate_file_size(file_path)
 
-            return {
-                "success": True,
-                "content": processed_result,
-                "metadata": {
-                    "capability": "read_file",
-                    "processed_at": datetime.datetime.now().isoformat(),
-                    "input_length": len(input_text)
-                }
-            }
+            if not file_path.exists():
+                return create_error_response(
+                    FileNotFoundError(f"File not found: {path}"), "file_read"
+                )
+
+            if not file_path.is_file():
+                return create_error_response(
+                    ValueError(f"Path is not a file: {path}"), "file_read"
+                )
+
+            content = safe_read_text(file_path, encoding, self.security.max_file_size)
+
+            return create_success_response(
+                {
+                    "path": str(file_path),
+                    "content": content,
+                    "encoding": encoding,
+                    "size": len(content),
+                },
+                "file_read",
+                f"Successfully read {format_file_size(len(content.encode()))}",
+            )
 
         except Exception as e:
-            # Log the error with structured data
-            self.logger.error("Error in capability execution", 
-                            capability_id="read_file", 
-                            error=str(e), 
-                            exc_info=True)
-            return {
-                "success": False,
-                "error": str(e),
-                "content": f"Error in Agentup Systools: {str(e)}"
+            return create_error_response(e, "file_read")
+
+    @capability(
+        id="file_write",
+        name="File Write",
+        description="Write content to files",
+        scopes=["files:write"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path to the file to write"},
+                "content": {"type": "string", "description": "Content to write to the file"},
+                "encoding": {"type": "string", "description": "Text encoding (default: utf-8)", "default": "utf-8"},
+                "create_parents": {"type": "boolean", "description": "Create parent directories if needed", "default": True},
+            },
+            "required": ["path", "content"],
+        }
+    )
+    async def file_write(self, context: CapabilityContext) -> dict[str, Any]:
+        """Write content to a file."""
+        try:
+            params = self._get_parameters(context)
+            path = params.get("path", "")
+            content = params.get("content", "")
+            encoding = params.get("encoding", "utf-8")
+            create_parents = params.get("create_parents", True)
+
+            file_path = self.security.validate_path(path)
+            content = self.security.sanitize_content(content)
+
+            # Check if we're overwriting
+            exists = file_path.exists()
+
+            safe_write_text(file_path, content, encoding, create_parents)
+
+            return create_success_response(
+                {
+                    "path": str(file_path),
+                    "size": len(content.encode()),
+                    "encoding": encoding,
+                    "overwritten": exists,
+                },
+                "file_write",
+                f"Successfully {'updated' if exists else 'created'} file",
+            )
+
+        except Exception as e:
+            return create_error_response(e, "file_write")
+
+    @capability(
+        id="file_exists",
+        name="File Exists",
+        description="Check if a file or directory exists",
+        scopes=["files:read"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "Path to check"}},
+            "required": ["path"],
+        }
+    )
+    async def file_exists(self, context: CapabilityContext) -> dict[str, Any]:
+        """Check if a file exists."""
+        try:
+            params = self._get_parameters(context)
+            path = params.get("path", "")
+
+            file_path = self.security.validate_path(path)
+            exists = file_path.exists()
+
+            return create_success_response(
+                {
+                    "path": str(file_path),
+                    "exists": exists,
+                    "is_file": file_path.is_file() if exists else None,
+                    "is_directory": file_path.is_dir() if exists else None,
+                },
+                "file_exists",
+            )
+
+        except Exception as e:
+            return create_error_response(e, "file_exists")
+
+    @capability(
+        id="file_info",
+        name="File Info",
+        description="Get detailed information about a file or directory",
+        scopes=["files:read"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "Path to the file or directory"}},
+            "required": ["path"],
+        }
+    )
+    async def file_info(self, context: CapabilityContext) -> dict[str, Any]:
+        """Get detailed information about a file."""
+        try:
+            params = self._get_parameters(context)
+            path = params.get("path", "")
+
+            file_path = self.security.validate_path(path)
+
+            if not file_path.exists():
+                return create_error_response(
+                    FileNotFoundError(f"Path not found: {path}"), "file_info"
+                )
+
+            stat = file_path.stat()
+
+            info = {
+                "path": str(file_path),
+                "name": file_path.name,
+                "type": get_file_type(file_path),
+                "size": stat.st_size,
+                "size_human": format_file_size(stat.st_size),
+                "permissions": get_file_permissions(file_path),
+                "created": format_timestamp(stat.st_ctime),
+                "modified": format_timestamp(stat.st_mtime),
+                "accessed": format_timestamp(stat.st_atime),
+                "is_file": file_path.is_file(),
+                "is_directory": file_path.is_dir(),
+                "is_symlink": file_path.is_symlink(),
             }
 
-    def get_config_schema(self) -> Dict[str, Any]:
-        """Define configuration schema for basic plugin."""
+            if file_path.is_symlink():
+                info["symlink_target"] = str(file_path.readlink())
+
+            return create_success_response(info, "file_info")
+
+        except Exception as e:
+            return create_error_response(e, "file_info")
+
+    @capability(
+        id="delete_file",
+        name="Delete File",
+        description="Delete a file or directory",
+        scopes=["files:admin"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path to delete"},
+                "recursive": {"type": "boolean", "description": "Delete directories recursively", "default": False},
+            },
+            "required": ["path"],
+        }
+    )
+    async def delete_file(self, context: CapabilityContext) -> dict[str, Any]:
+        """Delete a file or directory."""
+        try:
+            params = self._get_parameters(context)
+            path = params.get("path", "")
+            recursive = params.get("recursive", False)
+
+            file_path = self.security.validate_path(path)
+
+            if not file_path.exists():
+                return create_error_response(
+                    FileNotFoundError(f"Path not found: {path}"), "delete_file"
+                )
+
+            if file_path.is_dir():
+                if recursive:
+                    shutil.rmtree(file_path)
+                else:
+                    file_path.rmdir()  # Only works for empty directories
+            else:
+                file_path.unlink()
+
+            return create_success_response(
+                {"path": str(file_path), "deleted": True},
+                "delete_file",
+                f"Successfully deleted: {path}",
+            )
+
+        except Exception as e:
+            return create_error_response(e, "delete_file")
+
+    # Directory Operations
+    @capability(
+        id="list_directory",
+        name="List Directory",
+        description="List contents of a directory",
+        scopes=["files:read"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Directory path (default: current directory)", "default": "."},
+                "pattern": {"type": "string", "description": "Glob pattern to filter results (e.g., '*.txt')"},
+                "recursive": {"type": "boolean", "description": "List recursively", "default": False},
+            },
+        }
+    )
+    async def list_directory(self, context: CapabilityContext) -> dict[str, Any]:
+        """List contents of a directory."""
+        try:
+            params = context.metadata.get("parameters", {})
+            path = params.get("path", ".")
+            pattern = params.get("pattern")
+            recursive = params.get("recursive", False)
+
+            dir_path = self.security.validate_path(path)
+
+            if not dir_path.exists():
+                return create_error_response(
+                    FileNotFoundError(f"Directory not found: {path}"), "list_directory"
+                )
+
+            if not dir_path.is_dir():
+                return create_error_response(
+                    ValueError(f"Path is not a directory: {path}"), "list_directory"
+                )
+
+            entries = []
+
+            if recursive:
+                # Use rglob for recursive listing
+                paths = dir_path.rglob(pattern or "*")
+            else:
+                # Use glob for non-recursive listing
+                paths = dir_path.glob(pattern or "*")
+
+            for entry in sorted(paths):
+                try:
+                    stat = entry.stat()
+                    entries.append(
+                        {
+                            "name": entry.name,
+                            "path": str(entry.relative_to(dir_path)),
+                            "type": "directory" if entry.is_dir() else "file",
+                            "size": stat.st_size if entry.is_file() else None,
+                            "modified": format_timestamp(stat.st_mtime),
+                        }
+                    )
+                except Exception:
+                    # Skip entries we can't stat
+                    continue
+
+            return create_success_response(
+                {"path": str(dir_path), "count": len(entries), "entries": entries},
+                "list_directory",
+            )
+
+        except Exception as e:
+            return create_error_response(e, "list_directory")
+
+    @capability(
+        id="create_directory",
+        name="Create Directory",
+        description="Create a new directory",
+        scopes=["files:write"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path of directory to create"},
+                "parents": {"type": "boolean", "description": "Create parent directories if needed", "default": True},
+                "exist_ok": {"type": "boolean", "description": "Don't raise error if directory exists", "default": True},
+            },
+            "required": ["path"],
+        }
+    )
+    async def create_directory(self, context: CapabilityContext) -> dict[str, Any]:
+        """Create a directory."""
+        try:
+            params = self._get_parameters(context)
+            path = params.get("path", "")
+            parents = params.get("parents", True)
+            exist_ok = params.get("exist_ok", True)
+
+            dir_path = self.security.validate_path(path)
+
+            if dir_path.exists() and not exist_ok:
+                return create_error_response(
+                    FileExistsError(f"Directory already exists: {path}"),
+                    "create_directory",
+                )
+
+            dir_path.mkdir(parents=parents, exist_ok=exist_ok)
+
+            return create_success_response(
+                {"path": str(dir_path), "created": True},
+                "create_directory",
+                f"Directory created: {path}",
+            )
+
+        except Exception as e:
+            return create_error_response(e, "create_directory")
+
+    # System Operations
+    @capability(
+        id="system_info",
+        name="System Info",
+        description="Get system and platform information",
+        scopes=["system:read"],
+        ai_function=True,
+        ai_parameters={"type": "object", "properties": {}}
+    )
+    async def system_info(self, context: CapabilityContext) -> dict[str, Any]:
+        """Get system information."""
+        try:
+            info = {
+                "platform": platform.system(),
+                "platform_release": platform.release(),
+                "platform_version": platform.version(),
+                "architecture": platform.machine(),
+                "processor": platform.processor(),
+                "hostname": platform.node(),
+                "python_version": platform.python_version(),
+                "working_directory": os.getcwd(),
+            }
+
+            # Add OS-specific info
+            if platform.system() != "Windows":
+                info["user"] = os.environ.get("USER", "unknown")
+            else:
+                info["user"] = os.environ.get("USERNAME", "unknown")
+
+            return create_success_response(info, "system_info")
+
+        except Exception as e:
+            return create_error_response(e, "system_info")
+
+    @capability(
+        id="working_directory",
+        name="Working Directory",
+        description="Get the current working directory",
+        scopes=["system:read"],
+        ai_function=True,
+        ai_parameters={"type": "object", "properties": {}}
+    )
+    async def working_directory(self, context: CapabilityContext) -> dict[str, Any]:
+        """Get current working directory."""
+        try:
+            cwd = os.getcwd()
+            return create_success_response(
+                {"path": cwd, "absolute": os.path.abspath(cwd)}, "working_directory"
+            )
+        except Exception as e:
+            return create_error_response(e, "working_directory")
+
+    @capability(
+        id="execute_command",
+        name="Execute Command",
+        description="Execute a safe shell command",
+        scopes=["system:admin"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {
+                "command": {"type": "string", "description": "Command to execute"},
+                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 30},
+            },
+            "required": ["command"],
+        }
+    )
+    async def execute_command(self, context: CapabilityContext) -> dict[str, Any]:
+        """Execute a safe shell command."""
+        try:
+            params = self._get_parameters(context)
+            command = params.get("command", "")
+            timeout = params.get("timeout", 30)
+
+            # Validate command
+            args = self.security.validate_command(command)
+
+            # Execute command
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=str(self.security.workspace_dir),
+            )
+
+            return create_success_response(
+                {
+                    "command": command,
+                    "args": args,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "returncode": result.returncode,
+                    "success": result.returncode == 0,
+                },
+                "execute_command",
+            )
+
+        except subprocess.TimeoutExpired:
+            return create_error_response(
+                TimeoutError(f"Command timed out after {params.get('timeout', 30)} seconds"),
+                "execute_command",
+            )
+        except Exception as e:
+            return create_error_response(e, "execute_command")
+
+    # File Hashing
+    @capability(
+        id="file_hash",
+        name="File Hash",
+        description="Compute cryptographic hash(es) for a file",
+        scopes=["files:read"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path to the file"},
+                "algorithms": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["md5", "sha1", "sha256", "sha512"]},
+                    "description": "Hash algorithms to use",
+                    "default": ["sha256"],
+                },
+                "output_format": {
+                    "type": "string", 
+                    "enum": ["hex", "base64"],
+                    "description": "Output format for hash",
+                    "default": "hex"
+                },
+                "include_file_info": {
+                    "type": "boolean",
+                    "description": "Include file information in response",
+                    "default": True
+                }
+            },
+            "required": ["path"],
+        }
+    )
+    async def file_hash(self, context: CapabilityContext) -> dict[str, Any]:
+        """Compute cryptographic hash(es) for a file."""
+        try:
+            params = self._get_parameters(context)
+            
+            path = params.get("path", "")
+            algorithms = params.get("algorithms", ["sha256"])
+            output_format = params.get("output_format", "hex")
+            include_file_info = params.get("include_file_info", True)
+
+            # Use the hasher to compute file hash(es)
+            result = self.hasher.hash_file_with_info(
+                path, algorithms, output_format, include_file_info
+            )
+            return result
+        except Exception as e:
+            return create_error_response(e, "file_hash")
+
+    def get_config_schema(self) -> dict[str, Any]:
+        """Define configuration schema for system tools plugin."""
         return {
             "type": "object",
             "properties": {
+                "workspace_dir": {
+                    "type": "string",
+                    "description": "Base directory for file operations (for security)"
+                },
+                "max_file_size": {
+                    "type": "integer",
+                    "description": "Maximum file size in bytes",
+                    "default": 10485760
+                },
+                "allowed_extensions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Allowed file extensions"
+                },
                 "enabled": {
                     "type": "boolean",
                     "default": True,
@@ -87,12 +598,31 @@ class AgentupSystoolsPlugin(Plugin):
             "additionalProperties": False
         }
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate basic plugin configuration."""
+    def validate_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Validate system tools plugin configuration."""
+        errors = []
+        warnings = []
+
+        # Validate workspace directory
+        if "workspace_dir" in config:
+            workspace = config["workspace_dir"]
+            if not os.path.exists(workspace):
+                errors.append(f"Workspace directory does not exist: {workspace}")
+            elif not os.path.isdir(workspace):
+                errors.append(f"Workspace path is not a directory: {workspace}")
+
+        # Validate max file size
+        if "max_file_size" in config:
+            max_size = config["max_file_size"]
+            if not isinstance(max_size, int) or max_size <= 0:
+                errors.append("max_file_size must be a positive integer")
+            elif max_size < 1024:
+                warnings.append("max_file_size is very small (< 1KB)")
+
         return {
-            "valid": True,
-            "errors": [],
-            "warnings": []
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
         }
 
     def _extract_user_input(self, context: CapabilityContext) -> str:

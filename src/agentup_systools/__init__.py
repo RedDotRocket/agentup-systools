@@ -1,4 +1,4 @@
-"""Plugin: Agentup Systools"""
+"""System Tools Plugin for AgentUp"""
 
 from .plugin import AgentupSystoolsPlugin as Plugin
 
