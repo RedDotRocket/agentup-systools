@@ -1,191 +1,162 @@
-# AgentUp System Tools Plugin
+# Sys Tools Plugin for AgentUp
 
-A comprehensive system tools plugin for AgentUp that provides secure file operations, directory management, system information, and command execution capabilities.
+<p align="center">
+  <img src="static/logo.png" alt="SYS Tools Plugin" width="400"/>
+</p>
 
-## Features
+This plugin provides safe, controlled access to system operations including file I/O, directory management, and system information retrieval.
 
-### File Operations
-- **File Read/Write**: Read and write text files with encoding support
-- **File Information**: Get detailed file metadata (size, permissions, timestamps)
-- **File Existence**: Check if files or directories exist
-- **File Hashing**: Compute cryptographic hashes (MD5, SHA1, SHA256, SHA512)
-- **Directory Listing**: List directory contents with optional filtering
-- **Directory Creation**: Create directories with parent directory support
-- **File Deletion**: Safely delete files and directories
-
-### System Operations
-- **System Information**: Get platform, architecture, and system details
-- **Working Directory**: Get current working directory
-- **Command Execution**: Execute safe shell commands with security restrictions
-
-### Security Features
-- **Workspace Isolation**: All operations restricted to configured workspace directory
-- **Command Whitelist**: Only pre-approved safe commands can be executed
-- **File Size Limits**: Configurable maximum file size for operations
-- **Path Validation**: Protection against directory traversal attacks
-
-## Installation
-
-### For Development
-```bash
-cd agentup-systools
-pip install -e .
-```
-
-### From PyPI (from AgentUp repository)
-```bash
-pip install --extra-index-url https://api.agentup.dev/simple agentup-systools
-```
+If you need any more tool calls or functionality, please create an issue in the repository
+or go ahead and implement it yourself!
 
 ## Configuration
 
-Add the plugin to your `agentup.yml` configuration:
+Add the sys_tools skill to your agent's `agentup.yml`:
 
 ```yaml
 plugins:
-  - plugin_id: agentup_systools
-    package: agentup-systools
+  - plugin_id: sys_tools
     name: System Tools
     description: System tools for basic operations
-    config:
-      workspace_dir: "/path/to/your/workspace"  # Required: Base directory for file operations
-      max_file_size: 10485760                   # Optional: Max file size in bytes (default: 10MB)
-      debug: false                              # Optional: Enable debug logging
+    input_mode: text
+    output_mode: texti
     capabilities:
-      # Enable the capabilities you need
       - capability_id: file_read
         enabled: true
         required_scopes: ["files:read"]
       - capability_id: file_write
         enabled: true
         required_scopes: ["files:write"]
-      - capability_id: file_hash
+      - capability_id: file_exists
         enabled: true
         required_scopes: ["files:read"]
+      - capability_id: file_info
+        enabled: true
+        required_scopes: ["files:read"]
+      - capability_id: list_directory
+        enabled: true
+        required_scopes: ["files:read"]
+      - capability_id: create_directory
+        enabled: true
+        required_scopes: ["files:write"]
+      - capability_id: delete_file
+        enabled: true
+        required_scopes: ["files:admin"]
       - capability_id: system_info
+        enabled: true
+        required_scopes: ["system:read"]
+      - capability_id: working_directory
         enabled: true
         required_scopes: ["system:read"]
       - capability_id: execute_command
         enabled: true
         required_scopes: ["system:admin"]
-      # ... add other capabilities as needed
-
-# Security configuration
-security:
-  enabled: true
-  scope_hierarchy:
-    admin: ["*"]
-    files:admin: ["files:write", "files:read"]
-    files:write: ["files:read"]
-    system:admin: ["system:write", "system:read"]
-    system:write: ["system:read"]
+      - capability_id: file_hash
+        enabled: true
+        required_scopes: ["files:read"]
+    config:
+      # Optional: Restrict operations to specific directory (defaults to cwd)
+      workspace_dir: "./workspace"
+      # Optional: Maximum file size in bytes (default 10MB)
+      max_file_size: 10485760
+      # Optional: Allow safe command execution (default true)
+      allow_command_execution: true
 ```
 
-## Available Capabilities
+## Tool Capabilities
 
-| Capability ID | Description | Required Scopes | AI Function |
-|---------------|-------------|----------------|-------------|
-| `file_read` | Read file contents | `files:read` | ✅ |
-| `file_write` | Write content to files | `files:write` | ✅ |
-| `file_exists` | Check file/directory existence | `files:read` | ✅ |
-| `file_info` | Get file metadata | `files:read` | ✅ |
-| `file_hash` | Compute file hashes | `files:read` | ✅ |
-| `list_directory` | List directory contents | `files:read` | ✅ |
-| `create_directory` | Create directories | `files:write` | ✅ |
-| `delete_file` | Delete files/directories | `files:admin` | ✅ |
-| `system_info` | Get system information | `system:read` | ✅ |
-| `working_directory` | Get current directory | `system:read` | ✅ |
-| `execute_command` | Execute shell commands | `system:admin` | ✅ |
+### File Operations
+- **Read File** - Read text file contents with size limits and encoding support
+- **Write File** - Write content to files with atomic operations and parent directory creation
+- **Check File Exists** - Verify if a file or directory exists
+- **Get File Info** - Retrieve detailed metadata about files and directories
+- **Get File Hash** - Compute cryptographic hashes (MD5, SHA1, SHA256, SHA512) with hex/base64 output
 
-## Security Considerations
+### Directory Operations
+- **List Directory** - List directory contents with pattern matching and recursive options
+- **Create Directory** - Create directories with parent creation support
+- **Delete File/Directory** - Safely delete files and directories with recursive option
 
-### Workspace Directory
-- **Required**: You must configure a `workspace_dir` to restrict file operations to a specific directory
-- All file paths are resolved relative to this workspace directory
-- Absolute paths outside the workspace are rejected
+### System Operations
+- **Get System Info** - Retrieve platform, architecture, and environment information
+- **Get Working Directory** - Get current working directory path
+- **Execute Command** - Execute whitelisted shell commands with timeout support
 
-### Command Execution
-The plugin only allows execution of pre-approved safe commands:
-- `ls`, `pwd`, `whoami`, `date`, `echo`
-- `cat`, `head`, `tail`, `wc`, `grep`, `find`
-- `which`, `env`, `printenv`, `uname`, `hostname`
-- `id`, `groups`, `df`, `du`, `free`, `uptime`
+### Security and Validation
+- Path validation and basic sandboxing to prevent directory traversal
+- Configurable workspace restriction
+- File size limits (default 10MB)
+- Command whitelist for safe execution
+- Input sanitization and validation
 
-### File Size Limits
-- Default maximum file size: 10MB
-- Configurable via `max_file_size` setting
-- Prevents memory exhaustion from large files
+## Installation
+
+### For Development
+```bash
+cd system-tools
+pip install -e .
+```
+
+### From AgentUp Registry or PyPi (when published)
+```bash
+pip install agentup-system-tools
+```
+
+### Via AgentUp CLI
+```bash
+agentup plugin install system-tools
+```
+
+
 
 ## Usage Examples
 
-### AI Function Calls
-The plugin automatically registers AI functions that can be called by LLMs:
+### Natural Language Usage
 
-```python
-# These are handled automatically by the AgentUp framework
-"Get the SHA256 hash of config.yml"
+The plugin responds to natural language requests:
+
+```
+"Read the contents of config.json"
 "List all Python files in the src directory"
-"Read the contents of README.md"
-"Execute the hostname command"
-"Get system information"
+"Create a new folder called outputs"
+"What operating system am I running on?"
+"Calculate the SHA256 hash of package.json"
+"Get MD5 and SHA1 hashes for data.bin"
 ```
 
-### Direct API Usage
-```python
-from agentup_systools.plugin import AgentupSystoolsPlugin
+## Security Considerations
 
-plugin = AgentupSystoolsPlugin()
-plugin.configure({
-    "workspace_dir": "/path/to/workspace",
-    "max_file_size": 5242880,  # 5MB
-    "debug": True
-})
+### Path Security
+- All paths are validated to prevent directory traversal attacks
+- Operations are restricted to the configured workspace directory
+- Symbolic links are detected and reported
+- Absolute paths are only allowed when explicitly configured
 
-# Example usage (within AgentUp framework)
-result = await plugin.file_hash(context)
-```
+### Command Execution
+- Only whitelisted commands can be executed:
+  - File viewing: `ls`, `cat`, `head`, `tail`, `wc`
+  - System info: `pwd`, `whoami`, `date`, `uname`, `hostname`
+  - Search: `grep`, `find`, `which`
+  - Environment: `env`, `printenv`
+  - System status: `df`, `du`, `free`, `uptime`
+- Commands are parsed to prevent injection attacks
+- Execution timeout prevents hanging processes
 
-### Key Implementation Notes
+### File Size Limits
+- Default 10MB limit for file operations
+- Configurable via `max_file_size` setting
+- Large files are truncated with notification
 
-#### Parameter Extraction
-The plugin uses a robust parameter extraction method that works with both AgentUp's capability context and AI function calls:
+## Contributing
 
-```python
-def _get_parameters(self, context: CapabilityContext) -> dict[str, Any]:
-    """Extract parameters from context, checking multiple locations for compatibility."""
-    params = context.metadata.get("parameters", {})
-    if not params:
-        params = context.task.metadata if context.task and context.task.metadata else {}
-    return params
-```
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
 
-#### Configuration Integration
-The plugin properly integrates with AgentUp's configuration system:
+## Support
 
-```python
-def configure(self, config: dict[str, Any]) -> None:
-    """Configure the plugin with settings."""
-    super().configure(config)
-    
-    workspace_dir = config.get("workspace_dir")
-    max_file_size = config.get("max_file_size", 10 * 1024 * 1024)
-    
-    self.security = SecurityManager(
-        workspace_dir=workspace_dir,
-        max_file_size=max_file_size
-    )
-```
-
-### Testing
-```bash
-# Run tests
-pytest tests/
-
-# Test with an AgentUp agent
-cd /path/to/your/agent
-agentup agent serve
-```
-
-## License
-
-Apache License 2.0
+For issues, questions, or contributions:
+- Create an issue in the repository
+- Refer to AgentUp documentation for plugin development
