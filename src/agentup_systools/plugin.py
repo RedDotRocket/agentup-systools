@@ -5,20 +5,19 @@ Provides comprehensive file system operations, directory management,
 system information, and secure command execution capabilities.
 """
 
-import json
 import os
 import platform
 import shutil
 import subprocess
 from typing import Any
-import structlog  # noqa: F401
 
+import structlog  # noqa: F401
 from agent.plugins.base import Plugin
 from agent.plugins.decorators import capability
 from agent.plugins.models import CapabilityContext
 
 from .hashing import FileHasher
-from .security import SecurityError, SecurityManager
+from .security import SecurityManager
 from .utils import (
     create_error_response,
     create_success_response,
@@ -46,17 +45,17 @@ class AgentupSystoolsPlugin(Plugin):
     def configure(self, config: dict[str, Any]) -> None:
         """Configure the plugin with settings."""
         super().configure(config)
-        
+
         # Reinitialize security manager with configuration
         workspace_dir = config.get("workspace_dir")
         max_file_size = config.get("max_file_size", 10 * 1024 * 1024)
-        
+
         self.security = SecurityManager(
             workspace_dir=workspace_dir,
             max_file_size=max_file_size
         )
         self.hasher = FileHasher(self.security)
-        
+
         if config.get("debug", False):
             self.logger.info(f"Plugin configured with workspace_dir: {workspace_dir}, max_file_size: {max_file_size}")
 
@@ -81,7 +80,17 @@ class AgentupSystoolsPlugin(Plugin):
                 "encoding": {"type": "string", "description": "Text encoding (default: utf-8)", "default": "utf-8"},
             },
             "required": ["path"],
-        }
+        },
+        # A2A AgentSkill metadata
+        examples=[
+            "Read the contents of config.json",
+            "Show me what's in the README.md file",
+            "Display the contents of /var/log/app.log",
+            "Read the Python script at src/main.py"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["text/plain", "application/json"],
+        security=[{"scopes": ["files:read"]}]
     )
     async def file_read(self, context: CapabilityContext) -> dict[str, Any]:
         """Read contents of a file."""
@@ -134,7 +143,17 @@ class AgentupSystoolsPlugin(Plugin):
                 "create_parents": {"type": "boolean", "description": "Create parent directories if needed", "default": True},
             },
             "required": ["path", "content"],
-        }
+        },
+        # A2A AgentSkill metadata
+        examples=[
+            "Write 'Hello World' to output.txt",
+            "Save this JSON configuration to settings.json",
+            "Create a new Python script at src/helper.py",
+            "Update the README.md with new documentation"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["files:write"]}]
     )
     async def file_write(self, context: CapabilityContext) -> dict[str, Any]:
         """Write content to a file."""
@@ -177,7 +196,17 @@ class AgentupSystoolsPlugin(Plugin):
             "type": "object",
             "properties": {"path": {"type": "string", "description": "Path to check"}},
             "required": ["path"],
-        }
+        },
+        # A2A AgentSkill metadata
+        examples=[
+            "Check if config.json exists",
+            "Does the directory /home/user/projects exist?",
+            "Verify if the file backup.tar.gz is present",
+            "Is there a .env file in the current directory?"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["files:read"]}]
     )
     async def file_exists(self, context: CapabilityContext) -> dict[str, Any]:
         """Check if a file exists."""
@@ -211,7 +240,17 @@ class AgentupSystoolsPlugin(Plugin):
             "type": "object",
             "properties": {"path": {"type": "string", "description": "Path to the file or directory"}},
             "required": ["path"],
-        }
+        },
+        # A2A AgentSkill metadata
+        examples=[
+            "Get information about the file document.pdf",
+            "Show me the details of the logs directory",
+            "What are the permissions on script.sh?",
+            "When was config.yml last modified?"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["files:read"]}]
     )
     async def file_info(self, context: CapabilityContext) -> dict[str, Any]:
         """Get detailed information about a file."""
@@ -264,7 +303,17 @@ class AgentupSystoolsPlugin(Plugin):
                 "recursive": {"type": "boolean", "description": "Delete directories recursively", "default": False},
             },
             "required": ["path"],
-        }
+        },
+        # A2A AgentSkill metadata
+        examples=[
+            "Delete the file temp.txt",
+            "Remove the empty directory old_backup",
+            "Delete the logs folder and all its contents",
+            "Remove all .tmp files from the cache directory"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["files:admin"]}]
     )
     async def delete_file(self, context: CapabilityContext) -> dict[str, Any]:
         """Delete a file or directory."""
@@ -311,7 +360,17 @@ class AgentupSystoolsPlugin(Plugin):
                 "pattern": {"type": "string", "description": "Glob pattern to filter results (e.g., '*.txt')"},
                 "recursive": {"type": "boolean", "description": "List recursively", "default": False},
             },
-        }
+        },
+        # A2A AgentSkill metadata
+        examples=[
+            "List all files in the current directory",
+            "Show me all Python files in the src folder",
+            "List all .json files recursively in the config directory",
+            "What's in the /var/log directory?"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["files:read"]}]
     )
     async def list_directory(self, context: CapabilityContext) -> dict[str, Any]:
         """List contents of a directory."""
@@ -380,7 +439,17 @@ class AgentupSystoolsPlugin(Plugin):
                 "exist_ok": {"type": "boolean", "description": "Don't raise error if directory exists", "default": True},
             },
             "required": ["path"],
-        }
+        },
+        # A2A AgentSkill metadata
+        examples=[
+            "Create a new directory called 'output'",
+            "Make a folder structure 'data/processed/2024'",
+            "Create directories for the project: src, tests, docs",
+            "Set up a backup directory at /tmp/backups"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["files:write"]}]
     )
     async def create_directory(self, context: CapabilityContext) -> dict[str, Any]:
         """Create a directory."""
@@ -416,7 +485,17 @@ class AgentupSystoolsPlugin(Plugin):
         description="Get system and platform information",
         scopes=["system:read"],
         ai_function=True,
-        ai_parameters={"type": "object", "properties": {}}
+        ai_parameters={"type": "object", "properties": {}},
+        # A2A AgentSkill metadata
+        examples=[
+            "What operating system is this running on?",
+            "Show me the system information",
+            "Get the platform details and Python version",
+            "What's the hostname and architecture?"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["system:read"]}]
     )
     async def system_info(self, context: CapabilityContext) -> dict[str, Any]:
         """Get system information."""
@@ -449,7 +528,17 @@ class AgentupSystoolsPlugin(Plugin):
         description="Get the current working directory",
         scopes=["system:read"],
         ai_function=True,
-        ai_parameters={"type": "object", "properties": {}}
+        ai_parameters={"type": "object", "properties": {}},
+        # A2A AgentSkill metadata
+        examples=[
+            "What's the current working directory?",
+            "Show me where I am in the filesystem",
+            "Get the present working directory",
+            "What directory am I currently in?"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["system:read"]}]
     )
     async def working_directory(self, context: CapabilityContext) -> dict[str, Any]:
         """Get current working directory."""
@@ -474,7 +563,17 @@ class AgentupSystoolsPlugin(Plugin):
                 "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 30},
             },
             "required": ["command"],
-        }
+        },
+        # A2A AgentSkill metadata
+        examples=[
+            "Run 'ls -la' to list all files",
+            "Execute 'git status' to check repository status",
+            "Run the Python script: python analyze.py",
+            "Execute 'df -h' to check disk usage"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["system:admin"]}]
     )
     async def execute_command(self, context: CapabilityContext) -> dict[str, Any]:
         """Execute a safe shell command."""
@@ -533,7 +632,7 @@ class AgentupSystoolsPlugin(Plugin):
                     "default": ["sha256"],
                 },
                 "output_format": {
-                    "type": "string", 
+                    "type": "string",
                     "enum": ["hex", "base64"],
                     "description": "Output format for hash",
                     "default": "hex"
@@ -545,13 +644,23 @@ class AgentupSystoolsPlugin(Plugin):
                 }
             },
             "required": ["path"],
-        }
+        },
+        # A2A AgentSkill metadata
+        examples=[
+            "Calculate the SHA256 hash of document.pdf",
+            "Get MD5 and SHA1 checksums for archive.zip",
+            "Verify the integrity of download.iso with SHA512",
+            "Compute all hashes for the executable file"
+        ],
+        input_modes=["text/plain"],
+        output_modes=["application/json"],
+        security=[{"scopes": ["files:read"]}]
     )
     async def file_hash(self, context: CapabilityContext) -> dict[str, Any]:
         """Compute cryptographic hash(es) for a file."""
         try:
             params = self._get_parameters(context)
-            
+
             path = params.get("path", "")
             algorithms = params.get("algorithms", ["sha256"])
             output_format = params.get("output_format", "hex")
