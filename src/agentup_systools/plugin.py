@@ -577,6 +577,7 @@ class AgentupSystoolsPlugin(Plugin):
     )
     async def execute_command(self, context: CapabilityContext) -> dict[str, Any]:
         """Execute a safe shell command."""
+        params: dict[str, Any] = {}
         try:
             params = self._get_parameters(context)
             command = params.get("command", "")
@@ -742,10 +743,15 @@ class AgentupSystoolsPlugin(Plugin):
                 if hasattr(msg, "role") and msg.role.value == "user":
                     if hasattr(msg, "parts") and msg.parts:
                         for part in msg.parts:
+                            # Check for text content with proper type checking
                             if hasattr(part, "root") and hasattr(part.root, "text"):
-                                return part.root.text
-                            elif hasattr(part, "text"):
-                                return part.text
+                                text_content = getattr(part.root, "text", None)
+                                if text_content:
+                                    return str(text_content)
+                            # Direct text attribute access with safe getattr
+                            text_content = getattr(part, "text", None)
+                            if text_content:
+                                return str(text_content)
         return ""
 
     async def cleanup(self):

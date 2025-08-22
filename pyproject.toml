@@ -1,14 +1,10 @@
 [project]
 name = "agentup-systools"
-version = "0.5.0"
+version = "0.6.0"
 description = "A plugin that provides Agentup Systools functionality"
 requires-python = ">=3.11"
-authors = [
-    { name = "Luke Hinds", email = "luke@rdrocket.com" }
-]
-dependencies = [
-    "agentup>=0.5.3",
-]
+authors = [{ name = "Luke Hinds", email = "luke@rdrocket.com" }]
+dependencies = ["agentup>=0.6.5"]
 
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -26,27 +22,20 @@ agentup_systools = "agentup_systools.plugin:AgentupSystoolsPlugin"
 target-version = "py310"
 line-length = 120
 select = ["UP"]
-exclude = [
-    ".git",
-    "__pycache__",
-    "build",
-    "dist",
-    ".venv",
-    "venv",
-]
+exclude = [".git", "__pycache__", "build", "dist", ".venv", "venv"]
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "UP",  # pyupgrade
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
 ]
 ignore = [
-    "E501",  # line too long (handled by formatter)
-    "B008",  # do not perform function calls in argument defaults
+    "E501", # line too long (handled by formatter)
+    "B008", # do not perform function calls in argument defaults
 ]
 
 [tool.ruff.format]
@@ -66,3 +55,7 @@ packages = ["src/agentup_systools"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"

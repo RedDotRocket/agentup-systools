@@ -70,8 +70,7 @@ class FileHasher:
         # Validate output format
         if output_format not in ["hex", "base64"]:
             raise ValueError(
-                f"Unsupported output format '{output_format}'. "
-                f"Supported: 'hex', 'base64'"
+                f"Unsupported output format '{output_format}'. Supported: 'hex', 'base64'"
             )
 
         # Create hash object
@@ -132,15 +131,11 @@ class FileHasher:
         # Validate output format
         if output_format not in ["hex", "base64"]:
             raise ValueError(
-                f"Unsupported output format '{output_format}'. "
-                f"Supported: 'hex', 'base64'"
+                f"Unsupported output format '{output_format}'. Supported: 'hex', 'base64'"
             )
 
         # Create hash objects for all algorithms
-        hashers = {
-            algorithm: self.SUPPORTED_ALGORITHMS[algorithm]()
-            for algorithm in algorithms
-        }
+        hashers = {algorithm: self.SUPPORTED_ALGORITHMS[algorithm]() for algorithm in algorithms}
 
         # Read file once and update all hashers
         with open(file_path, "rb") as f:
@@ -206,15 +201,11 @@ class FileHasher:
             if algorithms is None or len(algorithms) == 1:
                 # Single algorithm (use default sha256 if none specified)
                 algorithm = algorithms[0] if algorithms else "sha256"
-                hash_result = self.compute_file_hash(
-                    file_path, algorithm, output_format
-                )
+                hash_result = self.compute_file_hash(file_path, algorithm, output_format)
                 hashes = {algorithm: hash_result}
             else:
                 # Multiple algorithms
-                hashes = self.compute_multiple_hashes(
-                    file_path, algorithms, output_format
-                )
+                hashes = self.compute_multiple_hashes(file_path, algorithms, output_format)
 
             # Prepare response
             response_data = {

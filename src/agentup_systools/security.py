@@ -51,6 +51,8 @@ class SecurityManager:
             "du",
             "free",
             "uptime",
+            "kubectl",
+            "sed",
         }
 
         # Dangerous path patterns
