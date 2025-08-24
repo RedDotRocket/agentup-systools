@@ -11,7 +11,7 @@ or go ahead and implement it yourself!
 
 ## Configuration
 
-Add the sys_tools skill to your agent's `agentup.yml`:
+Add the plugin to your agent's `agentup.yml`. The plugin supports flexible configuration including custom command allow-lists to add your own tools:
 
 ```yaml
 plugins:
@@ -59,9 +59,58 @@ plugins:
       workspace_dir: "./workspace"
       # Optional: Maximum file size in bytes (default 10MB)
       max_file_size: 10485760
-      # Optional: Allow safe command execution (default true)
-      allow_command_execution: true
+      # Optional: Custom list of allowed commands for execution
+      # If not specified, uses secure defaults
+      allowed_commands:
+        - "ls"
+        - "pwd"
+        - "docker"
+        - "kubectl"
+        - "git"
+        - "npm"
+        - "pip"
+        - "python"
+        - "my_custom_script"
 ```
+
+### Advanced Configuration
+
+#### Custom Command Whitelist
+
+By default, the plugin includes a secure set of commonly-used commands. You can customize this list to include your own tools and scripts:
+
+```yaml
+plugins:
+  agentup_systools:
+    config:
+      allowed_commands:
+        # Development tools
+        - "git"
+        - "npm"
+        - "pip"
+        - "python"
+        - "node"
+        
+        # Container/orchestration tools  
+        - "docker"
+        - "kubectl"
+        - "helm"
+        
+        # Custom scripts and tools
+        - "my_deployment_script"
+        - "custom_analyzer"
+        
+        # Basic system commands
+        - "ls"
+        - "pwd"
+        - "cat"
+```
+
+**Important Notes:**
+- When you specify `allowed_commands`, it completely replaces the default list
+- Always include basic commands like `ls`, `pwd`, `cat` if you need them
+- The plugin will validate your configuration and warn about potentially dangerous commands
+- Commands are executed with the same permissions as the AgentUp process
 
 ## Tool Capabilities
 
@@ -102,8 +151,6 @@ pip install -e .
 pip install --extra-index-url https://api.agentup.dev/simple agentup-system-tools
 ```
 
-
-
 ## Usage Examples
 
 ### Natural Language Usage
@@ -117,6 +164,9 @@ The plugin responds to natural language requests:
 "What operating system am I running on?"
 "Calculate the SHA256 hash of package.json"
 "Get MD5 and SHA1 hashes for data.bin"
+"Run docker ps to show running containers"  # (if docker is in allowed_commands)
+"Execute git status to check repository"     # (if git is in allowed_commands)
+"Run my_custom_script with --help flag"     # (if my_custom_script is in allowed_commands)
 ```
 
 ## Security Considerations
@@ -128,12 +178,16 @@ The plugin responds to natural language requests:
 - Absolute paths are only allowed when explicitly configured
 
 ### Command Execution
-- Only whitelisted commands can be executed:
+- Only whitelisted commands can be executed
+- **Default allowed commands**:
   - File viewing: `ls`, `cat`, `head`, `tail`, `wc`
   - System info: `pwd`, `whoami`, `date`, `uname`, `hostname`
   - Search: `grep`, `find`, `which`
   - Environment: `env`, `printenv`
   - System status: `df`, `du`, `free`, `uptime`
+  - Container tools: `kubectl`
+  - Text processing: `sed`
+- **Custom command configuration**: Users can override the default list by specifying `allowed_commands` in their `agentup.yml` config
 - Commands are parsed to prevent injection attacks
 - Execution timeout prevents hanging processes
 

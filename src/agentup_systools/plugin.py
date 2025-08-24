@@ -50,14 +50,28 @@ class AgentupSystoolsPlugin(Plugin):
         workspace_dir = config.get("workspace_dir")
         max_file_size = config.get("max_file_size", 10 * 1024 * 1024)
 
+        # Get allowed commands from config if provided
+        allowed_commands_config = config.get("allowed_commands")
+        allowed_commands = None
+        if allowed_commands_config:
+            allowed_commands = set(allowed_commands_config)
+
         self.security = SecurityManager(
             workspace_dir=workspace_dir,
-            max_file_size=max_file_size
+            max_file_size=max_file_size,
+            allowed_commands=allowed_commands,
         )
         self.hasher = FileHasher(self.security)
 
         if config.get("debug", False):
-            self.logger.info(f"Plugin configured with workspace_dir: {workspace_dir}, max_file_size: {max_file_size}")
+            command_info = (
+                f", allowed_commands: {len(allowed_commands) if allowed_commands else 'default'}"
+                if allowed_commands
+                else ""
+            )
+            self.logger.info(
+                f"Plugin configured with workspace_dir: {workspace_dir}, max_file_size: {max_file_size}{command_info}"
+            )
 
     def _get_parameters(self, context: CapabilityContext) -> dict[str, Any]:
         """Extract parameters from context, checking multiple locations for compatibility."""
@@ -77,7 +91,11 @@ class AgentupSystoolsPlugin(Plugin):
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Path to the file to read"},
-                "encoding": {"type": "string", "description": "Text encoding (default: utf-8)", "default": "utf-8"},
+                "encoding": {
+                    "type": "string",
+                    "description": "Text encoding (default: utf-8)",
+                    "default": "utf-8",
+                },
             },
             "required": ["path"],
         },
@@ -86,11 +104,11 @@ class AgentupSystoolsPlugin(Plugin):
             "Read the contents of config.json",
             "Show me what's in the README.md file",
             "Display the contents of /var/log/app.log",
-            "Read the Python script at src/main.py"
+            "Read the Python script at src/main.py",
         ],
         input_modes=["text/plain"],
         output_modes=["text/plain", "application/json"],
-        security=[{"scopes": ["files:read"]}]
+        security=[{"scopes": ["files:read"]}],
     )
     async def file_read(self, context: CapabilityContext) -> dict[str, Any]:
         """Read contents of a file."""
@@ -108,9 +126,7 @@ class AgentupSystoolsPlugin(Plugin):
                 )
 
             if not file_path.is_file():
-                return create_error_response(
-                    ValueError(f"Path is not a file: {path}"), "file_read"
-                )
+                return create_error_response(ValueError(f"Path is not a file: {path}"), "file_read")
 
             content = safe_read_text(file_path, encoding, self.security.max_file_size)
 
@@ -139,8 +155,16 @@ class AgentupSystoolsPlugin(Plugin):
             "properties": {
                 "path": {"type": "string", "description": "Path to the file to write"},
                 "content": {"type": "string", "description": "Content to write to the file"},
-                "encoding": {"type": "string", "description": "Text encoding (default: utf-8)", "default": "utf-8"},
-                "create_parents": {"type": "boolean", "description": "Create parent directories if needed", "default": True},
+                "encoding": {
+                    "type": "string",
+                    "description": "Text encoding (default: utf-8)",
+                    "default": "utf-8",
+                },
+                "create_parents": {
+                    "type": "boolean",
+                    "description": "Create parent directories if needed",
+                    "default": True,
+                },
             },
             "required": ["path", "content"],
         },
@@ -149,11 +173,11 @@ class AgentupSystoolsPlugin(Plugin):
             "Write 'Hello World' to output.txt",
             "Save this JSON configuration to settings.json",
             "Create a new Python script at src/helper.py",
-            "Update the README.md with new documentation"
+            "Update the README.md with new documentation",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["files:write"]}]
+        security=[{"scopes": ["files:write"]}],
     )
     async def file_write(self, context: CapabilityContext) -> dict[str, Any]:
         """Write content to a file."""
@@ -202,11 +226,11 @@ class AgentupSystoolsPlugin(Plugin):
             "Check if config.json exists",
             "Does the directory /home/user/projects exist?",
             "Verify if the file backup.tar.gz is present",
-            "Is there a .env file in the current directory?"
+            "Is there a .env file in the current directory?",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["files:read"]}]
+        security=[{"scopes": ["files:read"]}],
     )
     async def file_exists(self, context: CapabilityContext) -> dict[str, Any]:
         """Check if a file exists."""
@@ -238,7 +262,9 @@ class AgentupSystoolsPlugin(Plugin):
         ai_function=True,
         ai_parameters={
             "type": "object",
-            "properties": {"path": {"type": "string", "description": "Path to the file or directory"}},
+            "properties": {
+                "path": {"type": "string", "description": "Path to the file or directory"}
+            },
             "required": ["path"],
         },
         # A2A AgentSkill metadata
@@ -246,11 +272,11 @@ class AgentupSystoolsPlugin(Plugin):
             "Get information about the file document.pdf",
             "Show me the details of the logs directory",
             "What are the permissions on script.sh?",
-            "When was config.yml last modified?"
+            "When was config.yml last modified?",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["files:read"]}]
+        security=[{"scopes": ["files:read"]}],
     )
     async def file_info(self, context: CapabilityContext) -> dict[str, Any]:
         """Get detailed information about a file."""
@@ -300,7 +326,11 @@ class AgentupSystoolsPlugin(Plugin):
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Path to delete"},
-                "recursive": {"type": "boolean", "description": "Delete directories recursively", "default": False},
+                "recursive": {
+                    "type": "boolean",
+                    "description": "Delete directories recursively",
+                    "default": False,
+                },
             },
             "required": ["path"],
         },
@@ -309,11 +339,11 @@ class AgentupSystoolsPlugin(Plugin):
             "Delete the file temp.txt",
             "Remove the empty directory old_backup",
             "Delete the logs folder and all its contents",
-            "Remove all .tmp files from the cache directory"
+            "Remove all .tmp files from the cache directory",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["files:admin"]}]
+        security=[{"scopes": ["files:admin"]}],
     )
     async def delete_file(self, context: CapabilityContext) -> dict[str, Any]:
         """Delete a file or directory."""
@@ -356,9 +386,20 @@ class AgentupSystoolsPlugin(Plugin):
         ai_parameters={
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Directory path (default: current directory)", "default": "."},
-                "pattern": {"type": "string", "description": "Glob pattern to filter results (e.g., '*.txt')"},
-                "recursive": {"type": "boolean", "description": "List recursively", "default": False},
+                "path": {
+                    "type": "string",
+                    "description": "Directory path (default: current directory)",
+                    "default": ".",
+                },
+                "pattern": {
+                    "type": "string",
+                    "description": "Glob pattern to filter results (e.g., '*.txt')",
+                },
+                "recursive": {
+                    "type": "boolean",
+                    "description": "List recursively",
+                    "default": False,
+                },
             },
         },
         # A2A AgentSkill metadata
@@ -366,11 +407,11 @@ class AgentupSystoolsPlugin(Plugin):
             "List all files in the current directory",
             "Show me all Python files in the src folder",
             "List all .json files recursively in the config directory",
-            "What's in the /var/log directory?"
+            "What's in the /var/log directory?",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["files:read"]}]
+        security=[{"scopes": ["files:read"]}],
     )
     async def list_directory(self, context: CapabilityContext) -> dict[str, Any]:
         """List contents of a directory."""
@@ -435,8 +476,16 @@ class AgentupSystoolsPlugin(Plugin):
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Path of directory to create"},
-                "parents": {"type": "boolean", "description": "Create parent directories if needed", "default": True},
-                "exist_ok": {"type": "boolean", "description": "Don't raise error if directory exists", "default": True},
+                "parents": {
+                    "type": "boolean",
+                    "description": "Create parent directories if needed",
+                    "default": True,
+                },
+                "exist_ok": {
+                    "type": "boolean",
+                    "description": "Don't raise error if directory exists",
+                    "default": True,
+                },
             },
             "required": ["path"],
         },
@@ -445,11 +494,11 @@ class AgentupSystoolsPlugin(Plugin):
             "Create a new directory called 'output'",
             "Make a folder structure 'data/processed/2024'",
             "Create directories for the project: src, tests, docs",
-            "Set up a backup directory at /tmp/backups"
+            "Set up a backup directory at /tmp/backups",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["files:write"]}]
+        security=[{"scopes": ["files:write"]}],
     )
     async def create_directory(self, context: CapabilityContext) -> dict[str, Any]:
         """Create a directory."""
@@ -491,11 +540,11 @@ class AgentupSystoolsPlugin(Plugin):
             "What operating system is this running on?",
             "Show me the system information",
             "Get the platform details and Python version",
-            "What's the hostname and architecture?"
+            "What's the hostname and architecture?",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["system:read"]}]
+        security=[{"scopes": ["system:read"]}],
     )
     async def system_info(self, context: CapabilityContext) -> dict[str, Any]:
         """Get system information."""
@@ -534,11 +583,11 @@ class AgentupSystoolsPlugin(Plugin):
             "What's the current working directory?",
             "Show me where I am in the filesystem",
             "Get the present working directory",
-            "What directory am I currently in?"
+            "What directory am I currently in?",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["system:read"]}]
+        security=[{"scopes": ["system:read"]}],
     )
     async def working_directory(self, context: CapabilityContext) -> dict[str, Any]:
         """Get current working directory."""
@@ -569,11 +618,11 @@ class AgentupSystoolsPlugin(Plugin):
             "Run 'ls -la' to list all files",
             "Execute 'git status' to check repository status",
             "Run the Python script: python analyze.py",
-            "Execute 'df -h' to check disk usage"
+            "Execute 'df -h' to check disk usage",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["system:admin"]}]
+        security=[{"scopes": ["system:admin"]}],
     )
     async def execute_command(self, context: CapabilityContext) -> dict[str, Any]:
         """Execute a safe shell command."""
@@ -636,13 +685,13 @@ class AgentupSystoolsPlugin(Plugin):
                     "type": "string",
                     "enum": ["hex", "base64"],
                     "description": "Output format for hash",
-                    "default": "hex"
+                    "default": "hex",
                 },
                 "include_file_info": {
                     "type": "boolean",
                     "description": "Include file information in response",
-                    "default": True
-                }
+                    "default": True,
+                },
             },
             "required": ["path"],
         },
@@ -651,11 +700,11 @@ class AgentupSystoolsPlugin(Plugin):
             "Calculate the SHA256 hash of document.pdf",
             "Get MD5 and SHA1 checksums for archive.zip",
             "Verify the integrity of download.iso with SHA512",
-            "Compute all hashes for the executable file"
+            "Compute all hashes for the executable file",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
-        security=[{"scopes": ["files:read"]}]
+        security=[{"scopes": ["files:read"]}],
     )
     async def file_hash(self, context: CapabilityContext) -> dict[str, Any]:
         """Compute cryptographic hash(es) for a file."""
@@ -682,30 +731,35 @@ class AgentupSystoolsPlugin(Plugin):
             "properties": {
                 "workspace_dir": {
                     "type": "string",
-                    "description": "Base directory for file operations (for security)"
+                    "description": "Base directory for file operations (for security)",
                 },
                 "max_file_size": {
                     "type": "integer",
                     "description": "Maximum file size in bytes",
-                    "default": 10485760
+                    "default": 10485760,
                 },
                 "allowed_extensions": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Allowed file extensions"
+                    "description": "Allowed file extensions",
+                },
+                "allowed_commands": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of allowed shell commands for execution (if not specified, uses default safe commands)",
                 },
                 "enabled": {
                     "type": "boolean",
                     "default": True,
-                    "description": "Enable/disable the plugin"
+                    "description": "Enable/disable the plugin",
                 },
                 "debug": {
                     "type": "boolean",
                     "default": False,
-                    "description": "Enable debug logging"
-                }
+                    "description": "Enable debug logging",
+                },
             },
-            "additionalProperties": False
+            "additionalProperties": False,
         }
 
     def validate_config(self, config: dict[str, Any]) -> dict[str, Any]:
@@ -729,11 +783,36 @@ class AgentupSystoolsPlugin(Plugin):
             elif max_size < 1024:
                 warnings.append("max_file_size is very small (< 1KB)")
 
-        return {
-            "valid": len(errors) == 0,
-            "errors": errors,
-            "warnings": warnings
-        }
+        # Validate allowed commands
+        if "allowed_commands" in config:
+            allowed_commands = config["allowed_commands"]
+            if not isinstance(allowed_commands, list):
+                errors.append("allowed_commands must be a list of strings")
+            else:
+                # Check if all commands are strings
+                non_strings = [cmd for cmd in allowed_commands if not isinstance(cmd, str)]
+                if non_strings:
+                    errors.append(f"allowed_commands contains non-string values: {non_strings}")
+
+                # Check for potentially dangerous commands
+                dangerous_commands = {
+                    "rm",
+                    "rmdir",
+                    "dd",
+                    "mkfs",
+                    "fdisk",
+                    "sudo",
+                    "su",
+                    "chmod",
+                    "chown",
+                }
+                dangerous_found = [cmd for cmd in allowed_commands if cmd in dangerous_commands]
+                if dangerous_found:
+                    warnings.append(
+                        f"Potentially dangerous commands in allowed_commands: {dangerous_found}"
+                    )
+
+        return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings}
 
     def _extract_user_input(self, context: CapabilityContext) -> str:
         """Extract user input from the task context (A2A message structure)."""

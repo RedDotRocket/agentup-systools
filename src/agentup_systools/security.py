@@ -15,7 +15,10 @@ class SecurityManager:
     """Manages security policies and validations."""
 
     def __init__(
-        self, workspace_dir: str | None = None, max_file_size: int = 10 * 1024 * 1024
+        self,
+        workspace_dir: str | None = None,
+        max_file_size: int = 10 * 1024 * 1024,
+        allowed_commands: set[str] | None = None,
     ):
         """
         Initialize security manager.
@@ -27,8 +30,8 @@ class SecurityManager:
         self.workspace_dir = Path(workspace_dir or os.getcwd()).resolve()
         self.max_file_size = max_file_size
 
-        # Command whitelist for safe execution
-        self.allowed_commands = {
+        # Default command whitelist for safe execution
+        default_allowed_commands = {
             "ls",
             "pwd",
             "whoami",
@@ -54,6 +57,11 @@ class SecurityManager:
             "kubectl",
             "sed",
         }
+
+        # Use provided allowed_commands or fall back to defaults
+        self.allowed_commands = (
+            allowed_commands if allowed_commands is not None else default_allowed_commands
+        )
 
         # Dangerous path patterns
         self.dangerous_patterns = [
@@ -122,8 +130,7 @@ class SecurityManager:
             size = path.stat().st_size
             if size > self.max_file_size:
                 raise SecurityError(
-                    f"File size ({size} bytes) exceeds maximum allowed "
-                    f"({self.max_file_size} bytes)"
+                    f"File size ({size} bytes) exceeds maximum allowed ({self.max_file_size} bytes)"
                 )
 
     def validate_command(self, command: str) -> list[str]:
@@ -145,7 +152,7 @@ class SecurityManager:
         try:
             args = shlex.split(command)
         except ValueError as e:
-            raise SecurityError(f"Invalid command syntax: {e}")
+            raise SecurityError(f"Command parsing error: {e}") from None
 
         if not args:
             raise SecurityError("Empty command")
@@ -188,8 +195,7 @@ class SecurityManager:
         """
         if len(content) > max_length:
             raise SecurityError(
-                f"Content length ({len(content)}) exceeds maximum "
-                f"allowed ({max_length})"
+                f"Content length ({len(content)}) exceeds maximum allowed ({max_length})"
             )
 
         # Remove null bytes
