@@ -4,9 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## Plugin Overview
 
-This is an AgentUp plugin that provides Agentup Systools functionality. It
-uses the AgentUp decorator-based plugin architecture for integration with
-the AgentUp runtime.
+This is an AgentUp plugin that provides comprehensive system tools functionality including file operations, directory management, system information, and secure command execution. It uses the AgentUp decorator-based plugin architecture for integration with the AgentUp runtime.
 
 ## Plugin Structure
 
@@ -14,10 +12,14 @@ the AgentUp runtime.
 agentup-systools/
 ├── src/
 │   └── agentup_systools/
-│       ├── __init__.py
-│       └── plugin.py           # Main plugin implementation
+│       ├── __init__.py         # Package initialization
+│       ├── plugin.py           # Main plugin implementation
+│       ├── security.py         # Security validation and management
+│       ├── utils.py            # Utility functions
+│       └── hashing.py          # File hashing capabilities
 ├── tests/
 │   └── test_agentup_systools.py
+├── static/                     # Static assets for AgentUp registry
 ├── pyproject.toml              # Package configuration with AgentUp entry point
 ├── README.md                   # Plugin documentation
 └── CLAUDE.md                   # This file
@@ -26,24 +28,39 @@ agentup-systools/
 ## Core Plugin Architecture
 
 ### Decorator System
-The plugin uses the `@capability` decorator to define functionality:
+The plugin uses the `@capability` decorator to define functionality. The main plugin class `AgentupSystoolsPlugin` provides comprehensive system tools capabilities:
 
 ```python
 from agent.plugins.base import Plugin
 from agent.plugins.decorators import capability
+from agent.plugins.models import CapabilityContext
 
 class AgentupSystoolsPlugin(Plugin):
     @capability(
-        id="read_file",
-        name="Agentup Systools",
-        description="A plugin that provides Agentup Systools functionality",
-        scopes=["api:read"],
-        ai_function=True
+        id="file_read",
+        name="File Read",
+        description="Read contents of files",
+        scopes=["files:read"],
+        ai_function=True,
+        ai_parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path to the file to read"},
+                "encoding": {"type": "string", "description": "Text encoding", "default": "utf-8"}
+            },
+            "required": ["path"]
+        }
     )
-    async def handle_request(self, context: CapabilityContext) -> str:
-        # Your capability logic here
-        return "Response"
+    async def file_read(self, context: CapabilityContext) -> dict[str, Any]:
+        # Implementation here
+        return response_dict
 ```
+
+### Available Capabilities
+The plugin provides the following capabilities:
+- **File Operations**: `file_read`, `file_write`, `file_exists`, `file_info`, `delete_file`, `file_hash`
+- **Directory Operations**: `list_directory`, `create_directory`
+- **System Operations**: `system_info`, `working_directory`, `execute_command`
 
 ### Entry Point
 The plugin is registered via entry point in `pyproject.toml`:
@@ -51,6 +68,13 @@ The plugin is registered via entry point in `pyproject.toml`:
 [project.entry-points."agentup.plugins"]
 agentup_systools = "agentup_systools.plugin:AgentupSystoolsPlugin"
 ```
+
+### Security Features
+The plugin includes comprehensive security features:
+- Path validation and workspace restrictions
+- File size limits
+- Command validation for safe execution
+- Content sanitization
 
 ## Development Guidelines
 
@@ -89,105 +113,135 @@ agentup_systools = "agentup_systools.plugin:AgentupSystoolsPlugin"
 
 ### Plugin Implementation Patterns
 
-#### 1. Basic Capability
+#### 1. File Operations Pattern
 ```python
 @capability(
-    id="read_file",
-    name="Agentup Systools",
-    description="A plugin that provides Agentup Systools functionality",
-    scopes=["api:read"],
-    tags=["agentup-systools", "custom"]
-)
-async def handle_request(self, context: CapabilityContext) -> str:
-    try:
-        # Extract input from context
-        user_input = self._extract_task_content(context)
-        
-        # Your capability logic here
-        response = self._process_request(user_input)
-        
-        return response
-    except Exception as e:
-        return f"Error: {str(e)}"
-```
-
-#### 2. AI Function Support
-```python
-@capability(
-    id="read_file_ai",
-    name="Agentup Systools AI Function",
-    description="AI-callable function for A plugin that provides Agentup Systools functionality",
-    scopes=["api:read"],
+    id="file_read",
+    name="File Read",
+    description="Read contents of files",
+    scopes=["files:read"],
     ai_function=True,
     ai_parameters={
         "type": "object",
         "properties": {
-            "query": {
-                "type": "string",
-                "description": "Query to process"
-            },
-            "options": {
-                "type": "object",
-                "properties": {
-                    "timeout": {"type": "integer", "default": 30}
-                }
-            }
+            "path": {"type": "string", "description": "Path to the file to read"},
+            "encoding": {"type": "string", "description": "Text encoding", "default": "utf-8"}
         },
-        "required": ["query"]
+        "required": ["path"]
     }
 )
-async def ai_function(self, context: CapabilityContext) -> str:
-    # Extract parameters from context
-    params = context.metadata.get("parameters", {})
-    query = params.get("query", "")
-    options = params.get("options", {})
-    
-    # Process the AI function call
-    result = await self._process_ai_request(query, options)
-    return result
+async def file_read(self, context: CapabilityContext) -> dict[str, Any]:
+    try:
+        params = self._get_parameters(context)
+        path = params.get("path", "")
+        encoding = params.get("encoding", "utf-8")
+        
+        # Security validation
+        file_path = self.security.validate_path(path)
+        self.security.validate_file_size(file_path)
+        
+        # File operation logic
+        content = safe_read_text(file_path, encoding, self.security.max_file_size)
+        
+        return create_success_response({
+            "path": str(file_path),
+            "content": content,
+            "encoding": encoding,
+            "size": len(content)
+        }, "file_read")
+        
+    except Exception as e:
+        return create_error_response(e, "file_read")
 ```
 
-#### 3. Multiple Capabilities
+#### 2. Directory Operations Pattern  
 ```python
-class AgentupSystoolsPlugin(Plugin):
-    @capability(
-        id="read_file_text",
-        name="Text Processing",
-        description="Process text input",
-        scopes=["api:read"]
-    )
-    async def process_text(self, context: CapabilityContext) -> str:
-        # Text processing logic
-        return "Processed text"
-    
-    @capability(
-        id="read_file_analyze",
-        name="Data Analysis",
-        description="Analyze data",
-        scopes=["api:read", "data:read"]
-    )
-    async def analyze_data(self, context: CapabilityContext) -> str:
-        # Analysis logic
-        return "Analysis complete"
+@capability(
+    id="list_directory",
+    name="List Directory",
+    description="List contents of a directory",
+    scopes=["files:read"],
+    ai_function=True,
+    ai_parameters={
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "Directory path", "default": "."},
+            "pattern": {"type": "string", "description": "Glob pattern to filter results"},
+            "recursive": {"type": "boolean", "description": "List recursively", "default": False}
+        }
+    }
+)
+async def list_directory(self, context: CapabilityContext) -> dict[str, Any]:
+    # Implementation with security validation and structured response
+    pass
+```
+
+#### 3. System Operations Pattern
+```python
+@capability(
+    id="execute_command",
+    name="Execute Command", 
+    description="Execute a safe shell command",
+    scopes=["system:admin"],
+    ai_function=True,
+    ai_parameters={
+        "type": "object",
+        "properties": {
+            "command": {"type": "string", "description": "Command to execute"},
+            "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 30}
+        },
+        "required": ["command"]
+    }
+)
+async def execute_command(self, context: CapabilityContext) -> dict[str, Any]:
+    # Command validation and secure execution
+    args = self.security.validate_command(command)
+    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    return create_success_response(result_data, "execute_command")
 ```
 
 ### Error Handling
-- Return strings for simple responses or CapabilityResult objects for complex responses
-- Handle exceptions gracefully within capability methods
-- Include descriptive error messages
-- Log errors appropriately for debugging
+The plugin uses structured error responses:
+```python
+# Success response
+return create_success_response(
+    data={"path": str(file_path), "content": content},
+    operation="file_read",
+    message="Successfully read file"
+)
+
+# Error response  
+return create_error_response(
+    error=FileNotFoundError(f"File not found: {path}"),
+    operation="file_read"
+)
+```
+
+### Security Implementation
+The plugin implements comprehensive security through the `SecurityManager` class:
+- **Path Validation**: Ensures paths are within the workspace directory
+- **File Size Limits**: Prevents processing of overly large files
+- **Command Validation**: Whitelist of allowed shell commands
+- **Content Sanitization**: Removes potentially dangerous content
+
+### Configuration Schema
+The plugin supports the following configuration options:
+```python
+{
+    "workspace_dir": "string",              # Base directory for operations
+    "max_file_size": "integer",             # Maximum file size in bytes
+    "allowed_extensions": ["string"],       # Allowed file extensions
+    "allowed_commands": ["string"],         # Allowed shell commands
+    "enabled": "boolean",                   # Enable/disable plugin
+    "debug": "boolean"                      # Debug logging
+}
+```
 
 ### Testing
 - Write comprehensive tests for all plugin functionality
 - Test both success and error cases
-- Mock external dependencies
+- Mock external dependencies  
 - Use pytest and async test patterns
-
-### Configuration
-- Define configuration schema in the @capability decorator
-- Override lifecycle methods for custom validation
-- Use environment variables for sensitive data
-- Provide sensible defaults
 
 ## Development Workflow
 
@@ -216,39 +270,41 @@ agentup plugin validate agentup_systools
 
 ## Plugin Capabilities
 
-### Available Capabilities
-- `CapabilityType.TEXT` - Text processing
-- `CapabilityType.MULTIMODAL` - Images, documents, etc.
-- `CapabilityType.AI_FUNCTION` - LLM-callable functions
-- `CapabilityType.STREAMING` - Streaming responses
-- `CapabilityType.STATEFUL` - State management
+### File Operations
+- **`file_read`**: Read file contents with encoding support
+- **`file_write`**: Write content to files with parent directory creation
+- **`file_exists`**: Check if files or directories exist
+- **`file_info`**: Get detailed file/directory information (size, permissions, timestamps)
+- **`delete_file`**: Delete files or directories (with recursive option)
+- **`file_hash`**: Compute cryptographic hashes (MD5, SHA1, SHA256, SHA512)
 
-### Middleware Support
-Request middleware for common functionality:
-- Rate limiting
-- Caching
-- Retry logic
-- Logging
-- Validation
+### Directory Operations  
+- **`list_directory`**: List directory contents with pattern filtering and recursive options
+- **`create_directory`**: Create directories with parent creation support
 
-### Service Integration
-Access external services via AgentUp's service registry:
-- HTTP clients
-- Database connections
-- Cache backends
-- Message queues
+### System Operations
+- **`system_info`**: Get comprehensive system and platform information
+- **`working_directory`**: Get current working directory
+- **`execute_command`**: Execute safe shell commands with timeout and output capture
 
-### Framework Integration
-- Leverage AgentUp's built-in features
-- Use provided utilities and helpers
-- Follow established patterns from other plugins
-- Maintain compatibility with different agent configurations
+### Security Scopes
+- **`files:read`**: Read access to files and directories
+- **`files:write`**: Write access for file and directory creation/modification  
+- **`files:admin`**: Administrative access for file deletion
+- **`system:read`**: System information access
+- **`system:admin`**: System command execution
 
-### Community Guidelines
-- Write clear documentation
-- Provide usage examples
-- Follow semantic versioning
-- Respond to issues and pull requests
+### AI Function Integration
+All capabilities are designed as AI-callable functions with:
+- Structured parameter schemas
+- Input/output validation
+- Rich examples for AI understanding
+- Standardized error handling
+
+### Utility Modules
+- **`security.py`**: SecurityManager for path validation and command filtering
+- **`utils.py`**: Helper functions for file operations and response formatting
+- **`hashing.py`**: FileHasher for cryptographic operations
 
 ## Resources
 
@@ -257,6 +313,49 @@ Access external services via AgentUp's service registry:
 - [Testing Guide](https://docs.agentup.dev/plugins/testing)
 - [AI Functions Guide](https://docs.agentup.dev/plugins/ai-functions)
 
+## Usage Examples
+
+### File Operations
+```python
+# Reading a configuration file
+await plugin.file_read(context_with_params({"path": "config.json"}))
+
+# Writing data to a file
+await plugin.file_write(context_with_params({
+    "path": "output.txt", 
+    "content": "Hello World",
+    "create_parents": True
+}))
+
+# Computing file hashes for integrity verification
+await plugin.file_hash(context_with_params({
+    "path": "document.pdf",
+    "algorithms": ["sha256", "md5"]
+}))
+```
+
+### Directory Operations
+```python
+# Listing Python files recursively
+await plugin.list_directory(context_with_params({
+    "path": "src",
+    "pattern": "*.py", 
+    "recursive": True
+}))
+```
+
+### System Operations  
+```python
+# Getting system information
+await plugin.system_info(context)
+
+# Executing a safe command
+await plugin.execute_command(context_with_params({
+    "command": "ls -la",
+    "timeout": 10
+}))
+```
+
 ---
 
-Remember: This plugin is part of the AgentUp ecosystem. Always consider how it integrates with other plugins and follows AgentUp approach for maximum compatibility and usefulness.
+Remember: This plugin provides comprehensive system tools functionality with security-first design. Always consider workspace restrictions and security policies when working with file operations and command execution.

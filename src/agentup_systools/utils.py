@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
-def format_file_size(size_bytes: int) -> str:
+def format_file_size(size_bytes: float) -> str:
     """
     Format file size in human-readable format.
 
@@ -68,9 +68,7 @@ def get_file_type(path: Path) -> str:
         return "unknown"
 
 
-def safe_read_text(
-    path: Path, encoding: str = "utf-8", max_size: int | None = None
-) -> str:
+def safe_read_text(path: Path, encoding: str = "utf-8", max_size: int | None = None) -> str:
     """
     Safely read text from a file.
 
@@ -93,18 +91,13 @@ def safe_read_text(
             # Read only up to max_size
             with open(path, encoding=encoding) as f:
                 content = f.read(max_size)
-                return (
-                    content
-                    + f"\n\n[Truncated - file size {format_file_size(size)} exceeds limit]"
-                )
+                return content + f"\n\n[Truncated - file size {format_file_size(size)} exceeds limit]"
 
     with open(path, encoding=encoding) as f:
         return f.read()
 
 
-def safe_write_text(
-    path: Path, content: str, encoding: str = "utf-8", create_parents: bool = True
-) -> None:
+def safe_write_text(path: Path, content: str, encoding: str = "utf-8", create_parents: bool = True) -> None:
     """
     Safely write text to a file.
 
@@ -144,9 +137,17 @@ def get_file_permissions(path: Path) -> str:
         Permission string (e.g., "rw-r--r--")
     """
     mode = path.stat().st_mode
-    perms = ["r" if mode & 0o400 else "-", "w" if mode & 0o200 else "-", "x" if mode & 0o100 else "-",
-             "r" if mode & 0o040 else "-", "w" if mode & 0o020 else "-", "x" if mode & 0o010 else "-",
-             "r" if mode & 0o004 else "-", "w" if mode & 0o002 else "-", "x" if mode & 0o001 else "-"]
+    perms = [
+        "r" if mode & 0o400 else "-",
+        "w" if mode & 0o200 else "-",
+        "x" if mode & 0o100 else "-",
+        "r" if mode & 0o040 else "-",
+        "w" if mode & 0o020 else "-",
+        "x" if mode & 0o010 else "-",
+        "r" if mode & 0o004 else "-",
+        "w" if mode & 0o002 else "-",
+        "x" if mode & 0o001 else "-",
+    ]
 
     # Owner permissions
 
@@ -201,9 +202,7 @@ def create_error_response(error: Exception, operation: str) -> dict[str, Any]:
     }
 
 
-def create_success_response(
-    data: Any, operation: str, message: str | None = None
-) -> dict[str, Any]:
+def create_success_response(data: Any, operation: str, message: str | None = None) -> dict[str, Any]:
     """
     Create a standardized success response.
 

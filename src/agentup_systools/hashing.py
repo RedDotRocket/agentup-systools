@@ -63,15 +63,12 @@ class FileHasher:
         # Validate algorithm
         if algorithm not in self.SUPPORTED_ALGORITHMS:
             raise ValueError(
-                f"Unsupported algorithm '{algorithm}'. "
-                f"Supported: {', '.join(self.SUPPORTED_ALGORITHMS.keys())}"
+                f"Unsupported algorithm '{algorithm}'. Supported: {', '.join(self.SUPPORTED_ALGORITHMS.keys())}"
             )
 
         # Validate output format
         if output_format not in ["hex", "base64"]:
-            raise ValueError(
-                f"Unsupported output format '{output_format}'. Supported: 'hex', 'base64'"
-            )
+            raise ValueError(f"Unsupported output format '{output_format}'. Supported: 'hex', 'base64'")
 
         # Create hash object
         hasher = self.SUPPORTED_ALGORITHMS[algorithm]()
@@ -124,15 +121,12 @@ class FileHasher:
         for algorithm in algorithms:
             if algorithm not in self.SUPPORTED_ALGORITHMS:
                 raise ValueError(
-                    f"Unsupported algorithm '{algorithm}'. "
-                    f"Supported: {', '.join(self.SUPPORTED_ALGORITHMS.keys())}"
+                    f"Unsupported algorithm '{algorithm}'. Supported: {', '.join(self.SUPPORTED_ALGORITHMS.keys())}"
                 )
 
         # Validate output format
         if output_format not in ["hex", "base64"]:
-            raise ValueError(
-                f"Unsupported output format '{output_format}'. Supported: 'hex', 'base64'"
-            )
+            raise ValueError(f"Unsupported output format '{output_format}'. Supported: 'hex', 'base64'")
 
         # Create hash objects for all algorithms
         hashers = {algorithm: self.SUPPORTED_ALGORITHMS[algorithm]() for algorithm in algorithms}

@@ -11,15 +11,11 @@ or go ahead and implement it yourself!
 
 ## Configuration
 
-Add the sys_tools skill to your agent's `agentup.yml`:
+Add the plugin to your agent's `agentup.yml`. The plugin supports flexible configuration including the ability to unban specific commands from the security denylist:
 
 ```yaml
 plugins:
-  - plugin_id: sys_tools
-    name: System Tools
-    description: System tools for basic operations
-    input_mode: text
-    output_mode: texti
+  agentup_systools:
     capabilities:
       - capability_id: file_read
         enabled: true
@@ -59,9 +55,41 @@ plugins:
       workspace_dir: "./workspace"
       # Optional: Maximum file size in bytes (default 10MB)
       max_file_size: 10485760
-      # Optional: Allow safe command execution (default true)
-      allow_command_execution: true
+      # Optional: Commands to remove from the banned list (unban)
+      # By default, dangerous commands are banned for security
+      # Only unban commands you trust and need
+      unbanned_commands:
+        - "eval"
+        - "exec"
+        - "cpio"
 ```
+
+### Configuration
+
+#### Command Security Configuration
+
+The plugin uses a security-first approach with a comprehensive list of banned commands that are not
+accessible to `execute_command`. Most common safe commands (ls, cat, echo, grep, etc.) work by default. You can selectively unban specific commands if needed:
+
+```yaml
+plugins:
+  agentup_systools:
+    config:
+      unbanned_commands:
+        - "eval"
+        - "exec"
+        - "cpio"
+```
+
+Main commands such as `list_directory`, `create_directory`, and `delete_file` are subject to high security scrutiny (e.g. path traversal protection).
+
+
+**Important Notes:**
+- Commands NOT in the banned list work by default (ls, cat, echo, grep, find, etc.)
+- `unbanned_commands` removes specific commands from the banned list
+- The plugin will warn about unbanning dangerous commands
+- Be extremely careful when unbanning system-critical commands
+- Commands are executed with the same permissions as the AgentUp process
 
 ## Tool Capabilities
 
@@ -102,8 +130,6 @@ pip install -e .
 pip install --extra-index-url https://api.agentup.dev/simple agentup-system-tools
 ```
 
-
-
 ## Usage Examples
 
 ### Natural Language Usage
@@ -117,6 +143,9 @@ The plugin responds to natural language requests:
 "What operating system am I running on?"
 "Calculate the SHA256 hash of package.json"
 "Get MD5 and SHA1 hashes for data.bin"
+"Run ls -la to list files"                  # Works by default (not banned)
+"Execute git status to check repository"     # Blocked by default (git is banned, unban if needed)
+"Run curl to fetch data from API"           # Blocked by default (curl is banned, unban if needed)
 ```
 
 ## Security Considerations
@@ -128,12 +157,21 @@ The plugin responds to natural language requests:
 - Absolute paths are only allowed when explicitly configured
 
 ### Command Execution
-- Only whitelisted commands can be executed:
-  - File viewing: `ls`, `cat`, `head`, `tail`, `wc`
-  - System info: `pwd`, `whoami`, `date`, `uname`, `hostname`
-  - Search: `grep`, `find`, `which`
-  - Environment: `env`, `printenv`
-  - System status: `df`, `du`, `free`, `uptime`
+- Uses a denylist approach - dangerous commands are banned by default
+- **Commands that work by default** (not in banned list):
+  - File viewing: `ls`, `cat`, `head`, `tail`, `wc`, `more`, `less`
+  - System info: `pwd`, `whoami`, `date`, `uname`, `hostname`, `id`
+  - Search: `grep`, `find`, `which`, `locate`, `awk`
+  - Environment: `env`, `printenv`, `echo`, `printf`
+  - System status: `df`, `du`, `free`, `uptime`, `ps`, `top`
+  - Text processing: `sed`, `cut`, `sort`, `uniq`, `tr`
+  - Development: `make`, `npm`, `yarn`, `pip`, `python`, `node`, `java`
+- **Banned by default** (can be unbanned via config):
+  - Network: `curl`, `wget`, `nc`, `ssh`, `scp`, `ftp`
+  - System control: `shutdown`, `reboot`, `systemctl`, `service`
+  - Dangerous: `dd`, `mkfs`, `fdisk`, `sudo`, `su`, `chmod`
+  - Version control: `git` (unban if needed for your workflow)
+- **Configuration**: Use `unbanned_commands` to selectively allow banned commands
 - Commands are parsed to prevent injection attacks
 - Execution timeout prevents hanging processes
 

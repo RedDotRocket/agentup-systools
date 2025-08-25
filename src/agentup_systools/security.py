@@ -15,7 +15,10 @@ class SecurityManager:
     """Manages security policies and validations."""
 
     def __init__(
-        self, workspace_dir: str | None = None, max_file_size: int = 10 * 1024 * 1024
+        self,
+        workspace_dir: str | None = None,
+        max_file_size: int = 10 * 1024 * 1024,
+        unbanned_commands: set[str] | None = None,
     ):
         """
         Initialize security manager.
@@ -23,37 +26,75 @@ class SecurityManager:
         Args:
             workspace_dir: Directory to restrict operations to (defaults to cwd)
             max_file_size: Maximum file size in bytes (default 10MB)
+            unbanned_commands: Commands to remove from the banned list (allow execution)
         """
         self.workspace_dir = Path(workspace_dir or os.getcwd()).resolve()
         self.max_file_size = max_file_size
 
-        # Command whitelist for safe execution
-        self.allowed_commands = {
-            "ls",
-            "pwd",
-            "whoami",
-            "date",
-            "echo",
-            "cat",
-            "head",
-            "tail",
-            "wc",
-            "grep",
-            "find",
-            "which",
-            "env",
-            "printenv",
-            "uname",
-            "hostname",
-            "id",
-            "groups",
-            "df",
-            "du",
-            "free",
-            "uptime",
-            "kubectl",
-            "sed",
+        # Default banned commands list for security
+        self.banned_commands = {
+            # System Destruction
+            "dd",
+            "mkfs",
+            "fdisk",
+            "shred",
+            "wipefs",
+            # Network & Remote Access
+            "nc",
+            "netcat",
+            "ssh",
+            "scp",
+            "telnet",
+            "ftp",
+            # System Control & Privilege Escalation
+            "su",
+            "sudo",
+            "passwd",
+            "chmod",
+            "mount",
+            "umount",
+            "systemctl",
+            "service",
+            # Dangerous Interpreters & Compilers
+            "eval",
+            "exec",
+            # File System Manipulation
+            "cpio",
+            "rsync",
+            # Environment & Shell Control
+            "history",
+            # macOS Specific Commands
+            "diskutil",  # Disk utility - format, partition, erase disks
+            "hdiutil",  # Disk image utility - mount/create disk images
+            "installer",  # Install packages (.pkg files)
+            "softwareupdate",  # System software updates
+            "spctl",  # System policy control (Gatekeeper)
+            "csrutil",  # System Integrity Protection control
+            "nvram",  # Non-volatile RAM manipulation
+            "pmset",  # Power management settings
+            "launchctl",  # Launch daemon/agent control
+            "dscl",  # Directory service command line
+            "dseditgroup",  # Edit group membership
+            "pwpolicy",  # Password policy administration
+            "sysadminctl",  # System administrator utility
+            "systemsetup",  # System setup utility
+            "scutil",  # System configuration utility
+            "networksetup",  # Network configuration
+            "security",  # Keychain and security framework
+            "codesign",  # Code signing utility
+            "xattr",  # Extended file attributes
+            "mdutil",  # Spotlight metadata utility
+            "tmutil",  # Time Machine utility
+            "caffeinate",  # Prevent system sleep (potential DoS)
+            "purge",  # Force memory cleanup
+            "reboot",  # System restart
+            "shutdown",  # System shutdown
+            "halt",  # System halt
         }
+
+        # Remove unbanned commands from the banned list if provided
+        if unbanned_commands:
+            self.banned_commands = self.banned_commands - unbanned_commands
 
         # Dangerous path patterns
         self.dangerous_patterns = [
@@ -102,9 +143,7 @@ class SecurityManager:
         try:
             resolved_path.relative_to(self.workspace_dir)
         except ValueError:
-            raise SecurityError(
-                f"Path '{path}' is outside workspace directory '{self.workspace_dir}'"
-            ) from None
+            raise SecurityError(f"Path '{path}' is outside workspace directory '{self.workspace_dir}'") from None
 
         return resolved_path
 
@@ -121,10 +160,7 @@ class SecurityManager:
         if path.exists() and path.is_file():
             size = path.stat().st_size
             if size > self.max_file_size:
-                raise SecurityError(
-                    f"File size ({size} bytes) exceeds maximum allowed "
-                    f"({self.max_file_size} bytes)"
-                )
+                raise SecurityError(f"File size ({size} bytes) exceeds maximum allowed ({self.max_file_size} bytes)")
 
     def validate_command(self, command: str) -> list[str]:
         """
@@ -145,17 +181,17 @@ class SecurityManager:
         try:
             args = shlex.split(command)
         except ValueError as e:
-            raise SecurityError(f"Invalid command syntax: {e}")
+            raise SecurityError(f"Command parsing error: {e}") from None
 
         if not args:
             raise SecurityError("Empty command")
 
-        # Check if base command is allowed
+        # Check if base command is banned
         base_command = args[0]
-        if base_command not in self.allowed_commands:
+        if base_command in self.banned_commands:
             raise SecurityError(
-                f"Command '{base_command}' is not in allowed list. "
-                f"Allowed commands: {', '.join(sorted(self.allowed_commands))}"
+                f"Command '{base_command}' is banned for security reasons. "
+                f"Contact your administrator to unban this command if needed."
             )
 
         # Additional validation for specific commands
@@ -187,10 +223,7 @@ class SecurityManager:
             SecurityError: If content violates security policies
         """
         if len(content) > max_length:
-            raise SecurityError(
-                f"Content length ({len(content)}) exceeds maximum "
-                f"allowed ({max_length})"
-            )
+            raise SecurityError(f"Content length ({len(content)}) exceeds maximum allowed ({max_length})")
 
         # Remove null bytes
         content = content.replace("\0", "")
