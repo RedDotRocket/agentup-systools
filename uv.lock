@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -32,7 +32,7 @@ sql = [
 
 [[package]]
 name = "agentup"
-version = "0.6.4"
+version = "0.6.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "a2a-sdk", extra = ["sql"] },
@@ -65,9 +65,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "valkey" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/37/55/033c502ddf9e554a35a0faf0ad94b713591ecd3145af374d6e6103e3240b/agentup-0.6.4.tar.gz", hash = "sha256:d35cad1ec151daa1d81bd27949a2e25ac92be9ecf5b5e48eca4bbd0274950f07", size = 19133724, upload-time = "2025-08-21T18:18:02.358Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f0/fb/653d5c3ffa3d11a7ee53eba694cfe83a5d19f3b1bcacce48a78f38276eca/agentup-0.6.5.tar.gz", hash = "sha256:bfcb003fa0819d7c367735709570f35c450819ede8a275627f5ef3862b810cb3", size = 19134566, upload-time = "2025-08-23T09:33:29.236Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c3/6e/7eed161ec94cb3d991ac050bd4fa5b18057eea8a0a294f09b995b688bc29/agentup-0.6.4-py3-none-any.whl", hash = "sha256:94362ddb5a835ea2df4123d6123e0ae12f947262735e7de6ce22c4c40453f086", size = 524501, upload-time = "2025-08-21T18:17:59.305Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/bd/b4932be85e8c2ed1c5b9848f86d8c655ad8550e188a8c952d333d19ad9db/agentup-0.6.5-py3-none-any.whl", hash = "sha256:f880759b96e81dcda46ad8ee162488146b8c180bdccb09bc4405933acad9e972", size = 525674, upload-time = "2025-08-23T09:33:26.786Z" },
 ]
 
 [[package]]
@@ -485,7 +485,7 @@ version = "3.22.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
-    { name = "docstring-parser", marker = "python_full_version < '4.0'" },
+    { name = "docstring-parser", marker = "python_full_version < '4'" },
     { name = "rich" },
     { name = "rich-rst" },
 ]
