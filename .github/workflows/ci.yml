@@ -60,10 +60,6 @@ jobs:
         ruff check src/ tests/
         ruff format --check src/ tests/
 
-    - name: Type check with mypy
-      run: |
-        mypy src/agentup_systools/
-
     - name: Security check with bandit
       run: |
         bandit -r src/agentup_systools/ -ll

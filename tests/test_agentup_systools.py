@@ -157,16 +157,16 @@ class TestSecurityManager:
         from agentup_systools.security import SecurityError
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # First verify curl is banned by default
+            # First verify rsync is banned by default
             plugin.configure({"workspace_dir": temp_dir})
             with pytest.raises(SecurityError):
-                plugin.security.validate_command("curl https://example.com")
+                plugin.security.validate_command("rsync -av source/ dest/")
 
-            # Now unban curl and verify it works
-            plugin.configure({"workspace_dir": temp_dir, "unbanned_commands": ["curl"]})
-            result = plugin.security.validate_command("curl https://example.com")
+            # Now unban rsync and verify it works
+            plugin.configure({"workspace_dir": temp_dir, "unbanned_commands": ["rsync"]})
+            result = plugin.security.validate_command("rsync -av source/ dest/")
             assert isinstance(result, list)
-            assert result[0] == "curl"
+            assert result[0] == "rsync"
 
 
 class TestFileHasher:
