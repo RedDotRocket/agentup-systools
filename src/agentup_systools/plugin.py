@@ -8,7 +8,7 @@ system information, and secure command execution capabilities.
 import os
 import platform
 import shutil
-import subprocess
+import subprocess  # nosec
 from typing import Any
 
 import structlog  # noqa: F401
@@ -443,7 +443,7 @@ class AgentupSystoolsPlugin(Plugin):
                         }
                     )
                 except Exception:
-                    # Skip entries we can't stat
+                    self.logger.warning(f"Failed to stat entry: {entry}")
                     continue
 
             return create_success_response(
@@ -622,12 +622,15 @@ class AgentupSystoolsPlugin(Plugin):
             args = self.security.validate_command(command)
 
             # Execute command
-            result = subprocess.run(
+            # Security: Command has been validated against banned list and parsed safely
+            # Using shell=False (default) and validated args list prevents injection
+            result = subprocess.run(  # nosec B603
                 args,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
                 cwd=str(self.security.workspace_dir),
+                shell=False,  # Explicitly set to False for clarity
             )
 
             return create_success_response(
