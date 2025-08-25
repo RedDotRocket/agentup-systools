@@ -15,11 +15,7 @@ Add the plugin to your agent's `agentup.yml`. The plugin supports flexible confi
 
 ```yaml
 plugins:
-  - plugin_id: sys_tools
-    name: System Tools
-    description: System tools for basic operations
-    input_mode: text
-    output_mode: texti
+  agentup_systools:
     capabilities:
       - capability_id: file_read
         enabled: true
