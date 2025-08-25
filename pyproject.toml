@@ -1,10 +1,13 @@
 [project]
 name = "agentup-systools"
-version = "0.6.1"
+version = "0.6.2"
 description = "A plugin that provides Agentup Systools functionality"
 requires-python = ">=3.11"
 authors = [{ name = "Luke Hinds", email = "luke@rdrocket.com" }]
-dependencies = ["agentup>=0.6.4"]
+dependencies = [
+    "agentup>=0.6.4",
+    "requests>=2.32.4",
+]
 
 classifiers = [
     "Development Status :: 4 - Beta",

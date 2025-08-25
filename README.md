@@ -11,7 +11,7 @@ or go ahead and implement it yourself!
 
 ## Configuration
 
-Add the plugin to your agent's `agentup.yml`. The plugin supports flexible configuration including custom command allow-lists to add your own tools:
+Add the plugin to your agent's `agentup.yml`. The plugin supports flexible configuration including the ability to unban specific commands from the security denylist:
 
 ```yaml
 plugins:
@@ -59,57 +59,40 @@ plugins:
       workspace_dir: "./workspace"
       # Optional: Maximum file size in bytes (default 10MB)
       max_file_size: 10485760
-      # Optional: Custom list of allowed commands for execution
-      # If not specified, uses secure defaults
-      allowed_commands:
-        - "ls"
-        - "pwd"
-        - "docker"
-        - "kubectl"
-        - "git"
-        - "npm"
-        - "pip"
-        - "python"
-        - "my_custom_script"
+      # Optional: Commands to remove from the banned list (unban)
+      # By default, dangerous commands are banned for security
+      # Only unban commands you trust and need
+      unbanned_commands:
+        - "eval"
+        - "exec"
+        - "cpio"
 ```
 
-### Advanced Configuration
+### Configuration
 
-#### Custom Command Whitelist
+#### Command Security Configuration
 
-By default, the plugin includes a secure set of commonly-used commands. You can customize this list to include your own tools and scripts:
+The plugin uses a security-first approach with a comprehensive list of banned commands that are not
+accessible to `execute_command`. Most common safe commands (ls, cat, echo, grep, etc.) work by default. You can selectively unban specific commands if needed:
 
 ```yaml
 plugins:
   agentup_systools:
     config:
-      allowed_commands:
-        # Development tools
-        - "git"
-        - "npm"
-        - "pip"
-        - "python"
-        - "node"
-        
-        # Container/orchestration tools  
-        - "docker"
-        - "kubectl"
-        - "helm"
-        
-        # Custom scripts and tools
-        - "my_deployment_script"
-        - "custom_analyzer"
-        
-        # Basic system commands
-        - "ls"
-        - "pwd"
-        - "cat"
+      unbanned_commands:
+        - "eval"
+        - "exec"
+        - "cpio"
 ```
 
+Main commands such as `list_directory`, `create_directory`, and `delete_file` are subject to high security scrutiny (e.g. path traversal protection).
+
+
 **Important Notes:**
-- When you specify `allowed_commands`, it completely replaces the default list
-- Always include basic commands like `ls`, `pwd`, `cat` if you need them
-- The plugin will validate your configuration and warn about potentially dangerous commands
+- Commands NOT in the banned list work by default (ls, cat, echo, grep, find, etc.)
+- `unbanned_commands` removes specific commands from the banned list
+- The plugin will warn about unbanning dangerous commands
+- Be extremely careful when unbanning system-critical commands
 - Commands are executed with the same permissions as the AgentUp process
 
 ## Tool Capabilities
@@ -164,9 +147,9 @@ The plugin responds to natural language requests:
 "What operating system am I running on?"
 "Calculate the SHA256 hash of package.json"
 "Get MD5 and SHA1 hashes for data.bin"
-"Run docker ps to show running containers"  # (if docker is in allowed_commands)
-"Execute git status to check repository"     # (if git is in allowed_commands)
-"Run my_custom_script with --help flag"     # (if my_custom_script is in allowed_commands)
+"Run ls -la to list files"                  # Works by default (not banned)
+"Execute git status to check repository"     # Blocked by default (git is banned, unban if needed)
+"Run curl to fetch data from API"           # Blocked by default (curl is banned, unban if needed)
 ```
 
 ## Security Considerations
@@ -178,16 +161,21 @@ The plugin responds to natural language requests:
 - Absolute paths are only allowed when explicitly configured
 
 ### Command Execution
-- Only whitelisted commands can be executed
-- **Default allowed commands**:
-  - File viewing: `ls`, `cat`, `head`, `tail`, `wc`
-  - System info: `pwd`, `whoami`, `date`, `uname`, `hostname`
-  - Search: `grep`, `find`, `which`
-  - Environment: `env`, `printenv`
-  - System status: `df`, `du`, `free`, `uptime`
-  - Container tools: `kubectl`
-  - Text processing: `sed`
-- **Custom command configuration**: Users can override the default list by specifying `allowed_commands` in their `agentup.yml` config
+- Uses a denylist approach - dangerous commands are banned by default
+- **Commands that work by default** (not in banned list):
+  - File viewing: `ls`, `cat`, `head`, `tail`, `wc`, `more`, `less`
+  - System info: `pwd`, `whoami`, `date`, `uname`, `hostname`, `id`
+  - Search: `grep`, `find`, `which`, `locate`, `awk`
+  - Environment: `env`, `printenv`, `echo`, `printf`
+  - System status: `df`, `du`, `free`, `uptime`, `ps`, `top`
+  - Text processing: `sed`, `cut`, `sort`, `uniq`, `tr`
+  - Development: `make`, `npm`, `yarn`, `pip`, `python`, `node`, `java`
+- **Banned by default** (can be unbanned via config):
+  - Network: `curl`, `wget`, `nc`, `ssh`, `scp`, `ftp`
+  - System control: `shutdown`, `reboot`, `systemctl`, `service`
+  - Dangerous: `dd`, `mkfs`, `fdisk`, `sudo`, `su`, `chmod`
+  - Version control: `git` (unban if needed for your workflow)
+- **Configuration**: Use `unbanned_commands` to selectively allow banned commands
 - Commands are parsed to prevent injection attacks
 - Execution timeout prevents hanging processes
 

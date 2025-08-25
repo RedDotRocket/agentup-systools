@@ -50,23 +50,23 @@ class AgentupSystoolsPlugin(Plugin):
         workspace_dir = config.get("workspace_dir")
         max_file_size = config.get("max_file_size", 10 * 1024 * 1024)
 
-        # Get allowed commands from config if provided
-        allowed_commands_config = config.get("allowed_commands")
-        allowed_commands = None
-        if allowed_commands_config:
-            allowed_commands = set(allowed_commands_config)
+        # Get unbanned commands from config if provided
+        unbanned_commands_config = config.get("unbanned_commands")
+        unbanned_commands = None
+        if unbanned_commands_config:
+            unbanned_commands = set(unbanned_commands_config)
 
         self.security = SecurityManager(
             workspace_dir=workspace_dir,
             max_file_size=max_file_size,
-            allowed_commands=allowed_commands,
+            unbanned_commands=unbanned_commands,
         )
         self.hasher = FileHasher(self.security)
 
         if config.get("debug", False):
             command_info = (
-                f", allowed_commands: {len(allowed_commands) if allowed_commands else 'default'}"
-                if allowed_commands
+                f", unbanned_commands: {len(unbanned_commands) if unbanned_commands else 'none'}"
+                if unbanned_commands
                 else ""
             )
             self.logger.info(
@@ -121,9 +121,7 @@ class AgentupSystoolsPlugin(Plugin):
             self.security.validate_file_size(file_path)
 
             if not file_path.exists():
-                return create_error_response(
-                    FileNotFoundError(f"File not found: {path}"), "file_read"
-                )
+                return create_error_response(FileNotFoundError(f"File not found: {path}"), "file_read")
 
             if not file_path.is_file():
                 return create_error_response(ValueError(f"Path is not a file: {path}"), "file_read")
@@ -262,9 +260,7 @@ class AgentupSystoolsPlugin(Plugin):
         ai_function=True,
         ai_parameters={
             "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Path to the file or directory"}
-            },
+            "properties": {"path": {"type": "string", "description": "Path to the file or directory"}},
             "required": ["path"],
         },
         # A2A AgentSkill metadata
@@ -287,9 +283,7 @@ class AgentupSystoolsPlugin(Plugin):
             file_path = self.security.validate_path(path)
 
             if not file_path.exists():
-                return create_error_response(
-                    FileNotFoundError(f"Path not found: {path}"), "file_info"
-                )
+                return create_error_response(FileNotFoundError(f"Path not found: {path}"), "file_info")
 
             stat = file_path.stat()
 
@@ -355,9 +349,7 @@ class AgentupSystoolsPlugin(Plugin):
             file_path = self.security.validate_path(path)
 
             if not file_path.exists():
-                return create_error_response(
-                    FileNotFoundError(f"Path not found: {path}"), "delete_file"
-                )
+                return create_error_response(FileNotFoundError(f"Path not found: {path}"), "delete_file")
 
             if file_path.is_dir():
                 if recursive:
@@ -424,14 +416,10 @@ class AgentupSystoolsPlugin(Plugin):
             dir_path = self.security.validate_path(path)
 
             if not dir_path.exists():
-                return create_error_response(
-                    FileNotFoundError(f"Directory not found: {path}"), "list_directory"
-                )
+                return create_error_response(FileNotFoundError(f"Directory not found: {path}"), "list_directory")
 
             if not dir_path.is_dir():
-                return create_error_response(
-                    ValueError(f"Path is not a directory: {path}"), "list_directory"
-                )
+                return create_error_response(ValueError(f"Path is not a directory: {path}"), "list_directory")
 
             entries = []
 
@@ -593,9 +581,7 @@ class AgentupSystoolsPlugin(Plugin):
         """Get current working directory."""
         try:
             cwd = os.getcwd()
-            return create_success_response(
-                {"path": cwd, "absolute": os.path.abspath(cwd)}, "working_directory"
-            )
+            return create_success_response({"path": cwd, "absolute": os.path.abspath(cwd)}, "working_directory")
         except Exception as e:
             return create_error_response(e, "working_directory")
 
@@ -608,17 +594,17 @@ class AgentupSystoolsPlugin(Plugin):
         ai_parameters={
             "type": "object",
             "properties": {
-                "command": {"type": "string", "description": "Command to execute"},
+                "command": {"type": "string", "description": "System Command to execute in shell"},
                 "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 30},
             },
             "required": ["command"],
         },
         # A2A AgentSkill metadata
         examples=[
-            "Run 'ls -la' to list all files",
-            "Execute 'git status' to check repository status",
-            "Run the Python script: python analyze.py",
-            "Execute 'df -h' to check disk usage",
+            "'ls -la'",
+            "'git status'",
+            "'python analyze.py'",
+            "'df -h'",
         ],
         input_modes=["text/plain"],
         output_modes=["application/json"],
@@ -717,9 +703,7 @@ class AgentupSystoolsPlugin(Plugin):
             include_file_info = params.get("include_file_info", True)
 
             # Use the hasher to compute file hash(es)
-            result = self.hasher.hash_file_with_info(
-                path, algorithms, output_format, include_file_info
-            )
+            result = self.hasher.hash_file_with_info(path, algorithms, output_format, include_file_info)
             return result
         except Exception as e:
             return create_error_response(e, "file_hash")
@@ -743,10 +727,10 @@ class AgentupSystoolsPlugin(Plugin):
                     "items": {"type": "string"},
                     "description": "Allowed file extensions",
                 },
-                "allowed_commands": {
+                "unbanned_commands": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of allowed shell commands for execution (if not specified, uses default safe commands)",
+                    "description": "List of commands to remove from the banned list (effectively allowing them)",
                 },
                 "enabled": {
                     "type": "boolean",
@@ -783,19 +767,19 @@ class AgentupSystoolsPlugin(Plugin):
             elif max_size < 1024:
                 warnings.append("max_file_size is very small (< 1KB)")
 
-        # Validate allowed commands
-        if "allowed_commands" in config:
-            allowed_commands = config["allowed_commands"]
-            if not isinstance(allowed_commands, list):
-                errors.append("allowed_commands must be a list of strings")
+        # Validate unbanned commands
+        if "unbanned_commands" in config:
+            unbanned_commands = config["unbanned_commands"]
+            if not isinstance(unbanned_commands, list):
+                errors.append("unbanned_commands must be a list of strings")
             else:
                 # Check if all commands are strings
-                non_strings = [cmd for cmd in allowed_commands if not isinstance(cmd, str)]
+                non_strings = [cmd for cmd in unbanned_commands if not isinstance(cmd, str)]
                 if non_strings:
-                    errors.append(f"allowed_commands contains non-string values: {non_strings}")
+                    errors.append(f"unbanned_commands contains non-string values: {non_strings}")
 
-                # Check for potentially dangerous commands
-                dangerous_commands = {
+                # Check for particularly dangerous commands being unbanned
+                very_dangerous_commands = {
                     "rm",
                     "rmdir",
                     "dd",
@@ -805,11 +789,16 @@ class AgentupSystoolsPlugin(Plugin):
                     "su",
                     "chmod",
                     "chown",
+                    "shutdown",
+                    "reboot",
+                    "halt",
+                    "systemctl",
+                    "service",
                 }
-                dangerous_found = [cmd for cmd in allowed_commands if cmd in dangerous_commands]
-                if dangerous_found:
+                dangerous_unbanned = [cmd for cmd in unbanned_commands if cmd in very_dangerous_commands]
+                if dangerous_unbanned:
                     warnings.append(
-                        f"Potentially dangerous commands in allowed_commands: {dangerous_found}"
+                        f"Very dangerous commands being unbanned - use with extreme caution: {dangerous_unbanned}"
                     )
 
         return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings}

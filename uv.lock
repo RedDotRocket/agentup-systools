@@ -72,14 +72,18 @@ wheels = [
 
 [[package]]
 name = "agentup-systools"
-version = "0.6.1"
+version = "0.6.2"
 source = { editable = "." }
 dependencies = [
     { name = "agentup" },
+    { name = "requests" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "agentup", specifier = ">=0.6.4" }]
+requires-dist = [
+    { name = "agentup", specifier = ">=0.6.4" },
+    { name = "requests", specifier = ">=2.32.4" },
+]
 
 [[package]]
 name = "aiohappyeyeballs"

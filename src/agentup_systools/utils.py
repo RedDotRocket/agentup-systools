@@ -91,17 +91,13 @@ def safe_read_text(path: Path, encoding: str = "utf-8", max_size: int | None = N
             # Read only up to max_size
             with open(path, encoding=encoding) as f:
                 content = f.read(max_size)
-                return (
-                    content + f"\n\n[Truncated - file size {format_file_size(size)} exceeds limit]"
-                )
+                return content + f"\n\n[Truncated - file size {format_file_size(size)} exceeds limit]"
 
     with open(path, encoding=encoding) as f:
         return f.read()
 
 
-def safe_write_text(
-    path: Path, content: str, encoding: str = "utf-8", create_parents: bool = True
-) -> None:
+def safe_write_text(path: Path, content: str, encoding: str = "utf-8", create_parents: bool = True) -> None:
     """
     Safely write text to a file.
 
@@ -206,9 +202,7 @@ def create_error_response(error: Exception, operation: str) -> dict[str, Any]:
     }
 
 
-def create_success_response(
-    data: Any, operation: str, message: str | None = None
-) -> dict[str, Any]:
+def create_success_response(data: Any, operation: str, message: str | None = None) -> dict[str, Any]:
     """
     Create a standardized success response.
 
